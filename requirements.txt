@@ -1,0 +1,2 @@
+tensorflow>=1.11
+scipy>=1.15
