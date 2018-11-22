@@ -138,4 +138,4 @@ def gaussian_lateral(
 
   half_length = length // 2
   points = np.arange(start=-half_length, stop=half_length + 1)
-  return np.exp(-points ** 2 / waist_radius)
+  return np.exp(-points ** 2 / waist_radius ** 2)
