@@ -67,11 +67,12 @@ class ComplexConvolutionTest(tf.test.TestCase):
 
   def testConvolutionComplex(self):
     tensor = tf.constant([1 + 2j, 0., 1j, 1 + 3j], dtype=tf.complex64)
-    filter = tf.constant([[0.+2.j, 0.+1.j], [3.+0.j, 2.+1.j]])
+    filter = tf.constant([[0. + 2.j, 0. + 1.j], [3. + 0.j, 2. + 1.j]])
     convolved = complex_convolution.convolve_complex_1d(tensor,
                                                         tf.cast(filter,
                                                                 tf.complex64))
-    truth_value = [[-4.+2.j, -2.+1.j], [ 0.+3.j, -1.+2.j], [ 1.+9.j, -2.+7.j]]
+    truth_value = [[-4. + 2.j, -2. + 1.j], [0. + 3.j, -1. + 2.j],
+                   [1. + 9.j, -2. + 7.j]]
     with self.test_session() as sess:
       convolved_eval = sess.run(convolved)
       self.assertAllClose(np.real(convolved_eval), np.real(truth_value))

@@ -25,7 +25,7 @@ def convolve_complex_1d(
 
   Raises:
     ValueError: If `tensor` and `filter` do not have compatible dtype or if
-      `filters` is not 1D.
+      `filter` has incorrect shape.
   """
   if tensor.dtype != filter.dtype:
     raise ValueError("`tensor` and `filter` must have same dtype got `{}`"
