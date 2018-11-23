@@ -5,7 +5,7 @@ import tensorflow as tf
 
 def convolve_complex_1d(
     tensor: tf.Tensor,
-    filters: tf.Tensor,
+    filter: tf.Tensor,
     stride: int = 1,
     padding: str = "VALID",
 ):
@@ -15,23 +15,24 @@ def convolve_complex_1d(
 
   Args:
     tensor: `tf.Tensor` with shape `batch_dimensions + [convolution_dimension]`.
-    filter: `tf.Tensor` with shape `[filter_length]`.
+    filter: `tf.Tensor` with shape `[filter_length, num_channels]`.
     padding: Type of padding. May be `VALID` or `SAME`.
     stride: Stride size to use between convolutions.
 
   Returns:
-    `tf.Tensor` resulting from convolving `padding` with `tensor`.
+    `tf.Tensor` resulting from convolving `padding` with `tensor`. Has shape
+    `batch_dimensions + convolution_dimensions + [num_channels]`
 
   Raises:
     ValueError: If `tensor` and `filter` do not have compatible dtype or if
       `filters` is not 1D.
   """
-  if tensor.dtype != filters.dtype:
-    raise ValueError("`tensor` and `filters` must have same dtype got `{}`"
-                     "".format([tensor.dtype, filters.dtype]))
-  filters.shape.assert_is_compatible_with([None])
+  if tensor.dtype != filter.dtype:
+    raise ValueError("`tensor` and `filter` must have same dtype got `{}`"
+                     "".format([tensor.dtype, filter.dtype]))
+  filter.shape.assert_is_compatible_with([None, None])
 
-  filter_length = filters.shape[0]
+  filter_length = filter.shape[0]
 
   if padding == "VALID":
     pass
@@ -54,15 +55,20 @@ def convolve_complex_1d(
                    range(0, tensor.shape[-1] - filter_length + 1,
                          stride)]
 
+  # Add batch dimensions to filter.
+  filters = tf.reshape(filter,
+                       [1] * tensor.shape.ndims + filter.shape.as_list())
+
   # Stack slices. `tensor` now has shape
   # `batch_dimensions + [output_dimension, filter_length]`.
   tensor = tf.stack(tensor_slices, -2)
 
-  # Add batch dimensions to filter.
-  filters = tf.reshape(filters, [1] * tensor.shape[:-1].ndims + [-1])
+  # Expand last dimension of `tensor` to account for `filter_count`. `tensor`
+  # now has shape `batch_dimensions + [output_dimension, filter_length, 1]`
+  tensor = tensor[..., tf.newaxis]
 
   # Mupltiply tensor with the filter along the last dimension.
   tensor = tensor * filters
 
-  # Sum along last dimension.
-  return tf.reduce_sum(tensor, -1)
+  # Sum along `filter_length` dimension
+  return tf.reduce_sum(tensor, -2)
