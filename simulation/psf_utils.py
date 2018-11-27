@@ -28,8 +28,7 @@ def to_filter(
       }
 
   This is useful when applying multiple filters (for example, when trying
-  to simulate multiple observation frequencies) in an observation. The output
-  of
+  to simulate multiple observation frequencies) in an observation.
 
   Args:
     psfs: List of 1D arrays representing the PSF of an imaging device.
@@ -40,7 +39,7 @@ def to_filter(
     Array of shape `[length, channels_in, channels_out]`.
 
   Raises:
-    ValueError: If all psf's are not the same length. Or mode arg is invalid.
+    ValueError: If all PSF are not the same length. Or mode arg is invalid.
     """
   if any(len(psf.shape) > 1 for psf in psfs):
     raise ValueError("All PSF's must be 1D, got {}.".format(
