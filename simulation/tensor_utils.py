@@ -3,6 +3,8 @@
 import tensorflow as tf
 import numpy as np
 
+from typing import List
+
 
 def rotate_tensor(
     tensor: tf.Tensor,
@@ -72,7 +74,7 @@ def rotate_tensor(
   transpose += axes
 
   # Transpose.
-  tensor = tf.transpose(tensor, [axis for axis, shape in transpose])
+  tensor = tf.transpose(tensor, [axis for axis, _ in transpose])
 
   # Reshape to put all of the batch dimensions into channels.
   tensor = tf.reshape(tensor, [shape for _, shape in transpose[:3]] + [-1])
@@ -83,9 +85,62 @@ def rotate_tensor(
   # Retrieve dimensions compressed into `channels`.
   tensor = tf.reshape(tensor, [shape for _, shape in transpose])
 
-  inverse_transpose = [new_position for new_position, _ in
-                       sorted(enumerate([axis for axis, _ in transpose]),
-                              key=lambda x: x[1])]
+  inverse_transpose = _reverse_transpose_sequence(
+    [axis for axis, _ in transpose])
 
   # Transpose to return axes to original positions.
   return tf.transpose(tensor, inverse_transpose)
+
+
+def combine_batch_into_channels(
+    tensor: tf.Tensor,
+    exclude_dimension: int,
+):
+  """Merges excess batch dimensions into channel dimension.
+
+  Reshapes `tensor` and merges all batch dimensions except `exclude_dimension`
+  into the channel dimension.
+
+  Args:
+    tensor: `tf.Tensor` of shape `batch_dimensions + [height, width, channels]`.
+    exclude_dimension: Int describing batch dimension to preserve.
+
+  Returns:
+    `tf.Tensor` of shape
+      `[preserved_batch_dimension, width, height, new_channels]` where the size
+      of `new_channels` depends on the number and size of `batch_dimensions` in
+      `tensor`. Also returns the transposition sequence required to recover
+      the original axis order if
+  """
+  tensor_shape = tensor.shape.as_list()
+  if exclude_dimension < 0:
+    raise ValueError(
+      "`exclude_dimension` must be positive got {}".format(exclude_dimension))
+  if len(tensor_shape) - exclude_dimension < 4:
+    raise ValueError(
+      "`exclude_dimension` must be a batch dimension (last 3 axes, are reserved "
+      "for `[height, width, channel]`)."
+    )
+
+  axes = [(axis, shape) for axis, shape in enumerate(tensor_shape)]
+
+  # Keep `rotation_axis` as batch dimension.
+  transpose = [axes.pop(exclude_dimension)]
+
+  # Append last 3 dimensions [`height`, `width`, `channels`].
+  transpose += [axes.pop(axis) for axis in range(-3, 0)]
+
+  # Finally append other dimensions.
+  transpose += axes
+
+  # Transpose.
+  tensor = tf.transpose(tensor, [axis for axis, _ in transpose])
+
+  # Reshape to put all of the batch dimensions into channels.
+  return tf.reshape(tensor, [shape for _, shape in transpose[:3]] + [-1])
+
+
+def _reverse_transpose_sequence(transpose_sequence: List):
+  """Generates sequence to reverse a transpose given the original sequence."""
+  return [new_position for new_position, _ in
+          sorted(enumerate(transpose_sequence), key=lambda x: x[1])]
