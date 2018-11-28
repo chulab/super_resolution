@@ -84,5 +84,49 @@ class RotateTest(tf.test.TestCase):
       self.assertAllClose(truth, rotate_eval)
 
 
+class TransposeTest(tf.test.TestCase):
+
+  @parameterized.expand([
+    ([0, 1], [0, 1],),
+    ([1, 0], [1, 0],),
+    ([2, 5, 3, 4, 0, 1], [4, 5, 0, 2, 3, 1],),
+  ])
+  def testReverseTranspose(self, sequence, reverse):
+    print(sequence)
+    self.assertEqual(
+      tensor_utils._reverse_transpose_sequence(sequence), reverse)
+
+  def testCombineBatchIntoChannels(self):
+    tensor = tf.random_uniform([5, 10, 7, 8, 9])
+
+    combined = tensor_utils.combine_batch_into_channels(
+      tensor, 0
+    )
+
+    true_combination = tf.reshape(
+      tf.transpose(tensor, [0, 2, 3, 4, 1]),
+      [5, 7, 8, 9 * 10]
+    )
+
+    with self.test_session() as sess:
+      combined_eval, truth_eval = sess.run([combined, true_combination])
+
+    self.assertAllEqual(truth_eval, combined_eval)
+
+  @parameterized.expand([
+    (4, 1),
+    (4, 2),
+    (4, 3),
+    (4, 4),
+    (5, 2),
+    (5, 7),
+  ])
+  def testCombineBatchBadExcludeDimension(self, dimensions, exclude_dimension):
+    tensor = tf.ones([5] * dimensions)
+    with self.assertRaisesRegex(
+        ValueError, "`exclude_dimension` must be a batch dimension."):
+      tensor_utils.combine_batch_into_channels(tensor, exclude_dimension)
+
+
 if __name__ == "__main__":
   tf.test.main()
