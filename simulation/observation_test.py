@@ -144,30 +144,31 @@ class ObservationTest(tf.test.TestCase):
 class RotateAndObserveTest(tf.test.TestCase):
 
   @parameterized.expand([
-    ([5] * 3,),
+    ([5] * 1,),
+    ([5] * 2,),
     ([5] * 4,),
-    ([5] * 6,),
   ])
   def testBadState(self, shape):
     state = tf.random_uniform(shape)
-    with self.assertRaisesRegex(ValueError, "`state` must be 5D"):
+    with self.assertRaisesRegex(ValueError, "`state` must be 3D"):
       observation.rotate_and_observe(
         state, tf.ones([1]), tf.ones([1] * 3), tf.ones([1] * 3))
 
   def testNoRotationIdentity(self):
-    state = tf.random_uniform([5, 5, 5, 5, 1])
+    state = tf.random_uniform([5, 5, 5])
     psf_lateral_filter = tf.cast(tf.ones([1] * 3), tf.complex64)
     psf_axial_filter = tf.cast(tf.ones([1] * 3), tf.complex64)
-    angles = tf.zeros([5])
+    angles = tf.zeros([7])
     observed = observation.rotate_and_observe(
       state, angles, psf_lateral_filter, psf_axial_filter
     )
+    true_state = tf.tile(state[:, tf.newaxis, :, :, tf.newaxis], [1, 7, 1, 1, 1])
     with self.test_session() as sess:
-      truth_eval, observed_eval = sess.run([state, observed])
+      truth_eval, observed_eval = sess.run([true_state, observed])
       self.assertAllClose(truth_eval, observed_eval)
 
   def testWithRotationIdentity(self):
-    state = tf.random_uniform([5, 6, 5, 5, 1])
+    state = tf.random_uniform([5, 5, 5])
     psf_lateral_filter = tf.cast(tf.ones([1] * 3), tf.complex64)
     psf_axial_filter = tf.cast(tf.ones([1] * 3), tf.complex64)
     angles = tf.random_uniform([6])
@@ -179,7 +180,7 @@ class RotateAndObserveTest(tf.test.TestCase):
     for slice in range(6):
       truth.append(
         tf.contrib.image.rotate(
-          tf.contrib.image.rotate(state[:, slice], angles[slice],  "BILINEAR"),
+          tf.contrib.image.rotate(state[:, :, :, tf.newaxis], angles[slice],  "BILINEAR"),
           -1 * angles[slice],  "BILINEAR",
         )
       )
