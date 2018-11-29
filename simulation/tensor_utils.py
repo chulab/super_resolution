@@ -62,6 +62,9 @@ def rotate_tensor(
                      "Got {} and {}.".format(
       angles.shape.as_list(), tensor_shape[rotation_axis]))
 
+  # Replace unknown dimension with -1.
+  tensor_shape = [-1 if dim is None else dim for dim in tensor_shape]
+
   axes = [(axis, shape) for axis, shape in enumerate(tensor_shape)]
 
   # Keep `rotation_axis` as batch dimension.
