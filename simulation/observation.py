@@ -82,20 +82,24 @@ def rotate_and_observe(
   """Convenience function to perform rotation, observe, and reverse rotation.
 
   Args:
-    state: `tf.Tensor` of shape `[batch, angle_count, height, width, channels]`.
+    state: `tf.Tensor` of shape `[batch, height, width, channels]`.
     angles: Angles to rotate `state` by before observation.
       See `tensor_utils.rotate_tensor`
     psf_lateral_filter: See `observe`.
     psf_axial_filter: See `observe`.
 
   Returns:
-    `tf.Tensor` of same shape as `state`. Represents simulated RF signal
-      acquired from observing `state` using given psf's at `angles`.
+    `tf.Tensor` of shape `[batch, angle_count, height, width, channels]`.
+    Represents simulated RF signal acquired from observing `state` using given
+    psf's at `angles`.
   """
-  if state.shape.ndims != 5:
+  if state.shape.ndims != 3:
     raise ValueError(
-      "`state` must be 5D (`[batch, angle_count, height, width, channels]`."
+      "`state` must be 3D (`[batch, height, width]`."
       " Got {})".format(state.shape.as_list()))
+
+  state = state[:, tf.newaxis, :, :, tf.newaxis]
+  state = tf.tile(state, [1, angles.shape[0], 1, 1, 1])
 
   # Rotate images along `angle` dimension.
   state = tensor_utils.rotate_tensor(state, angles, 1)
