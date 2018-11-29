@@ -1,6 +1,7 @@
 """Tests for `tensor_utils`."""
 
 import tensorflow as tf
+import numpy as np
 from parameterized import parameterized
 
 from simulation import tensor_utils
@@ -81,6 +82,22 @@ class RotateTest(tf.test.TestCase):
     rotate = tensor_utils.rotate_tensor(tensor, angles, rotation_axis)
     with self.test_session() as sess:
       truth, rotate_eval = sess.run([true_rotation, rotate])
+      self.assertAllClose(truth, rotate_eval)
+
+  def testRotationBatchUnknownDimension(self):
+    tensor = tf.placeholder(dtype=tf.float32, shape=[None, 7, 5, 5, 5])
+    angles = tf.random_uniform([7])
+    rotation_axis = 1
+    true_rotations = []
+    for batch_iter in range(3):
+      true_rotations.append(tf.contrib.image.rotate(
+        tensor[batch_iter], angles, "BILINEAR"))
+    true_rotation = tf.stack(true_rotations, 0)
+    rotate = tensor_utils.rotate_tensor(tensor, angles, rotation_axis)
+    with self.test_session() as sess:
+      truth, rotate_eval = sess.run(
+        [true_rotation, rotate],
+        feed_dict={tensor: np.random.random([3, 7, 5, 5, 5])})
       self.assertAllClose(truth, rotate_eval)
 
 
