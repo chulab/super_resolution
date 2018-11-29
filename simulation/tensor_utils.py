@@ -1,5 +1,8 @@
 """Tensor Utilities."""
 
+from operator import mul
+from functools import reduce
+
 import tensorflow as tf
 import numpy as np
 
@@ -80,7 +83,11 @@ def rotate_tensor(
   tensor = tf.transpose(tensor, [axis for axis, _ in transpose])
 
   # Reshape to put all of the batch dimensions into channels.
-  tensor = tf.reshape(tensor, [shape for _, shape in transpose[:3]] + [-1])
+  tensor = tf.reshape(
+    tensor,
+    ([shape for _, shape in transpose[:3]] +
+     [max(reduce(mul, [shape for _, shape in transpose[3:]], 1), -1)])
+  )
 
   # Perform rotation.
   tensor = tf.contrib.image.rotate(tensor, angles, "BILINEAR")
@@ -144,7 +151,11 @@ def combine_batch_into_channels(
   tensor = tf.transpose(tensor, [axis for axis, _ in transpose])
 
   # Reshape to put all of the batch dimensions into channels.
-  return tf.reshape(tensor, [shape for _, shape in transpose[:3]] + [-1])
+  return tf.reshape(
+    tensor,
+    ([shape for _, shape in transpose[:3]] +
+     [max(reduce(mul, [shape for _, shape in transpose[3:]], 1), -1)])
+  )
 
 
 def _reverse_transpose_sequence(transpose_sequence: List):
