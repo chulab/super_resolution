@@ -4,14 +4,13 @@ import tensorflow as tf
 from typing import Optional, Tuple
 
 from simulation import complex_convolution
+from simulation import tensor_utils
 
 
 def observe(
     state: tf.Tensor,
     psf_lateral: tf.Tensor,
     psf_axial: tf.Tensor,
-    lateral_spec: Optional[Tuple] = None,
-    axial_spec: Optional[Tuple] = None,
 ) -> tf.Tensor:
   """Simulates an observation of `state` using the convolution method.
 
@@ -72,3 +71,43 @@ def observe(
 
   # Return real values.
   return tf.abs(state)
+
+
+def rotate_and_observe(
+    state,
+    angles,
+    psf_lateral_filter,
+    psf_axial_filter,
+):
+  """Convenience function to perform rotation, observe, and reverse rotation.
+
+  Args:
+    state: `tf.Tensor` of shape `[batch, angle_count, height, width, channels]`.
+    angles: Angles to rotate `state` by before observation.
+      See `tensor_utils.rotate_tensor`
+    psf_lateral_filter: See `observe`.
+    psf_axial_filter: See `observe`.
+
+  Returns:
+    `tf.Tensor` of same shape as `state`. Represents simulated RF signal
+      acquired from observing `state` using given psf's at `angles`.
+  """
+  if state.shape.ndims != 5:
+    raise ValueError(
+      "`state` must be 5D (`[batch, angle_count, height, width, channels]`."
+      " Got {})".format(state.shape.as_list()))
+
+  # Rotate images along `angle` dimension.
+  state = tensor_utils.rotate_tensor(state, angles, 1)
+
+  # Convert to complex dtype.
+  state = tf.cast(state, tf.complex64)
+
+  # Observation.
+  state = observe(state, psf_lateral_filter, psf_axial_filter)
+
+  # Rotate back.
+  state = tensor_utils.rotate_tensor(state, -1 * angles, 1)
+
+  # Return intensity.
+  return state
