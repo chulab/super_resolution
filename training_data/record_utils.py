@@ -2,7 +2,7 @@
 
 import numpy as np
 import tensorflow as tf
-from simulation import estimator
+from simulation import defs
 
 def _bytes_feature(value):
   """Returns a bytes_list from a string / byte."""
@@ -32,7 +32,7 @@ def _int64_list_feature(value):
 def _construct_example(
     distribution: np.ndarray,
     observation: np.ndarray,
-    observation_params: estimator.ObservationSpec
+    observation_params: defs.ObservationSpec,
 ):
   """Constructs `tf.train.Example` for scatterer distribution and simulation.
 
