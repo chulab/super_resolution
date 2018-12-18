@@ -2,7 +2,6 @@
 
 import numpy as np
 import tensorflow as tf
-from simulation import estimator
 from simulation import defs
 
 def _bytes_feature(value):
