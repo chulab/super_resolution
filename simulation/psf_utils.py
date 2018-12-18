@@ -3,6 +3,7 @@
 import numpy as np
 
 from typing import List
+from simulation import response_functions
 
 _FROM_SAME = "FROM_SAME"
 _FROM_SINGLE = "FROM_SINGLE"
@@ -61,3 +62,37 @@ def to_filter(
   else:
     raise ValueError("`mode` must be one of {} but got `{}`".format(
       [_FROM_SAME, _FROM_SINGLE], mode))
+
+
+def lateral_psf_filters(
+    psf_length: int,
+    wavelengths: List[float],
+    numerical_aperture: float,
+    grid_dimension: float,
+):
+  """Builds lateral psf filter(s)."""
+  if psf_length % 2 == 0:
+    raise ValueError("`psf_length` must be odd.")
+  psf_lateral = [response_functions.gaussian_lateral(
+    psf_length, wavelength, numerical_aperture, grid_dimension)
+    for wavelength in wavelengths]
+  return to_filter(psf_lateral, mode="FROM_SINGLE")
+
+
+def axial_psf_filters(
+    psf_length,
+    wavelengths,
+    numerical_aperture,
+    bandwidth,
+    grid_dimension,
+):
+  """Constructs axial psf filter(s)."""
+  if psf_length % 2 == 0:
+    raise ValueError("`psf_length` must be odd.")
+  psf_axial = [
+    response_functions.gaussian_pulse(response_functions.gaussian_axial(
+      psf_length, wavelength, grid_dimension, numerical_aperture),
+      wavelength, bandwidth, grid_dimension)
+    for wavelength in wavelengths]
+  return to_filter(psf_axial, mode="FROM_SAME")
+
