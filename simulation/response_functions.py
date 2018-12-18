@@ -1,7 +1,7 @@
 """Contains 1D response functions (PSF) to model US devices."""
 
 import numpy as np
-import utils
+from simulation import utils
 
 _FWHM_STANDARD_DEVIATION_RATIO = 2.355
 _SOUND_SPEED_WATER = 1498  # In meters.
@@ -119,8 +119,8 @@ def gaussian_pulse(
 def gaussian_lateral(
     length: int,
     wavelength: float,
-    numerical_aperature: float,
     dz: float,
+    numerical_aperature: float = .125,
 ):
   """Returns 1D lateral psf with discrete gaussian profile.
 
@@ -137,49 +137,53 @@ def gaussian_lateral(
 
   half_length = length // 2
   points = np.arange(start=-half_length, stop=half_length + 1)
-  return np.exp(-points ** 2 / (waist_radius ** 2))
+  return np.exp( -points ** 2 / (waist_radius ** 2) )
 
 
-def hermite_val(
+def hermite_polynomial(
     value: np.ndarray,
     degree: int
 ):
-    """Computes the physicists' Hermite polynomial of specified degree at values specified
+    """Computes the physicists' Hermite polynomial of specified degree.
 
-    Reference: https://en.wikipedia.org/wiki/Hermite_polynomials
+    See `https://en.wikipedia.org/wiki/Hermite_polynomials`
 
     Args:
-      value: `np.ndarray` of any shape
-      degree: int denoting degree of Hermite polynomial
+      value: `np.ndarray` of any shape.
+      degree: int denoting degree of Hermite polynomial.
 
     Returns:
-      `np.ndarray` of same shape as value
+      `np.ndarray` of same shape as value.
     """
     coefficients = np.zeros(degree+1)
     coefficients[degree] = 1
     return np.polynomial.hermite.hermval(value, coefficients)
 
 
-def u_hermite_gaussian(
+def _u_hermite_gaussian(
     beam: np.ndarray,
     degree: int,
     waist_radius: float,
     wavelength: float
 ):
-    """Computes u_J(x, z) given in https://en.wikipedia.org/wiki/Gaussian_beam#Hermite-Gaussian_modes
+    """Computes u_J(x, z) given in
+    `https://en.wikipedia.org/wiki/Gaussian_beam#Hermite-Gaussian_modes`.
 
     Args:
-      beam: Either 1. Cross-section of beam
-                      `np.ndarray` of shape `[length]` x `[length]` x 2 whose (i, j)th element stores the (x, z) coordinates
-            Or     2. Full beam
-                      `np.ndarray` of shape `[length]` x `[length]` x `[length]`x 2 whose (i, j, k)th element stores the (x, z) coordinates
-      degree: int denoting degree of hermite-gaussian
-      waist_radius: float denoting w(0) in meters, defined in https://en.wikipedia.org/wiki/Gaussian_beam#Beam_waist
-      wavelength: float denoting wavelength in meters
+      beam: 1. Cross-section of beam
+            `np.ndarray` of shape `[length, length, 2]` whose (i, j)th element
+            stores the (x, z) coordinates.
+            2. Full beam
+            `np.ndarray` of shape `[length, length, length, 2]` whose
+            (i, j, k)th element stores the (x, z) coordinates.
+      degree: int denoting degree of hermite-gaussian.
+      waist_radius: float denoting w(0) in meters.
+      wavelength: float denoting wavelength in meters.
 
     Returns:
-      1. Cross-section of beam: `np.ndarray` of shape `[length]` x `[length]` which stores u_J(x, z)
-      2. Full beam: `np.ndarray` of shape `[length]` x `[length]` x `[length]` which stores u_J(x, z)
+      According to options for beam above,
+      1. Cross-section: `np.ndarray` of shape `[length, length]` for u_J(x, z).
+      2. Full: `np.ndarray` of shape `[length, length, length]` for u_J(x, z).
     """
 
     if (beam.ndim != 3) and (beam.ndim != 4):
@@ -200,10 +204,47 @@ def u_hermite_gaussian(
     norm_constant = np.sqrt(np.sqrt(2/np.pi)/ np.exp2(degree) / np.math.factorial(degree) / waist_radius)
     norm_z = np.sqrt(1j * waist_radius / complex_beam)
     phase_shift = np.power(-complex_beam_conjugate / complex_beam, degree/2)
-    hermite = hermite_val(np.sqrt(2) * x / waist_z, degree)
+    hermite = hermite_polynomial(np.sqrt(2) * x / waist_z, degree)
     amplitude_decay = np.exp(-1j * np.pi / wavelength * (x**2) / complex_beam)
 
     return norm_constant * norm_z * phase_shift * hermite * amplitude_decay
+
+
+def coordinate_grid_3d(
+    length: int,
+    dz: float,
+):
+    """ Creates an evenly spaced [length, length, length] 3-d grid with each
+    element as its corresponding [x, y, z] coordinates.
+
+    See `https://stackoverflow.com/questions/32208359/is-there-a-multi-dimensional-version-of-arange-linspace-in-numpy`
+
+    Args:
+      length: int denoting number of pixels.
+      dz: float denoting grid size in meters.
+
+    Returns:
+      `np.ndarray` of shape `[length, length, length, 3]` where last entry is
+      [x, y, z] coordinate corresponding to point [length, length, length] in
+      the physical grid.
+    """
+    center = length // 2 * dz
+    #If center = 1 and center = 3,
+    #X = [[[-1, -1, -1] x 3] [[0, 0, 0] x 3] [[1, 1, 1] x 3]]
+    #Y = [[[-1, -1, -1] [0, 0, 0] [1, 1, 1]] x 3]
+    #Z = [[[-1, 0, 1] x3] x3 ]
+    #X.flatten() = [ -1 x 9, 0 x 9, 1 x 9]
+    #Y.flatten() = [ -1 -1 -1 0 0 0 1 1 1 x 3]
+    #Z.flatten() = [-1 0 1 x 9]
+    #XYZ = combine above as columns and then transpose
+    #which is equivalent to combining columns of above.
+    #e.g. [[-1, -1, -1], [-1, -1, 0], [-1, -1, 1] ...  ]
+    X, Y, Z = np.mgrid[-center:center:length*1j, -center:center:length*1j, -center:center:length*1j];
+    XYZ = np.array([X.flatten(), Y.flatten(), Z.flatten()]).T
+    #reshape XYZ which is 1-d to 3-d.
+    coordinate_grid = XYZ.reshape(length, length, length, -1)
+
+    return coordinate_grid
 
 
 #TODO include different lengths and grid sizes in all three directions
@@ -216,40 +257,36 @@ def hermite_gaussian_mode(
     numerical_aperature: float = .125,
     amplitude: float = 1.,
 ):
-    """Computes complex E(x, y, z) over the volume of a `length * dz` x `length * dz` x `length * dz` cube
-    centered at the origin (measured in meters)
+    """Computes complex E(x, y, z) over the volume of a
+    `length * dz` x `length * dz` x `length * dz` cube centered at the origin.
 
-    Reference: https://en.wikipedia.org/wiki/Gaussian_beam#Hermite-Gaussian_modes
+    See `https://en.wikipedia.org/wiki/Gaussian_beam#Hermite-Gaussian_modes`
 
     Args:
-      length: int denoting number of pixels
+      length: int denoting number of pixels.
       wavelength: float denoting wavelength in meters.
       dz: float denoting grid size in meters.
-      L, M: ints denoting (L, M) order of hermite-gaussian
+      L : int denoting L order of hermite-gaussian.
+      M : int denoting M order of hermite-gaussian.
       numerical_aperture: float denoting NA of collecting apparatus.
-      amplitude: float denoting amplitude of beam (more specifically, E(0, 0, 0))
+      amplitude: float denoting amplitude of beam (specifically, E(0, 0, 0)).
 
     Returns:
-      `np.ndarray` of shape `[length]` x `[length]` x `[length]` which stores E(x, y, z)
+      `np.ndarray` of shape `[length, length, length]` which stores E(x, y, z).
     """
 
     if length % 2 != 1:
       raise ValueError("`length` must be odd, but got {}".format(length))
 
-    center = length // 2 * dz
-    """ Creates an evenly spaced `[length]` x `[length]` x `[length]` 3-d grid with each element as [x, y, z] coordinates
-
-    Note: beam is of shape `[length]` x `[length]` x `[length]` x 3 as it is a 3-d grid which stores another 1-d grid
-    Reference: https://stackoverflow.com/questions/32208359/is-there-a-multi-dimensional-version-of-arange-linspace-in-numpy
-
-    """
-    beam = np.mgrid[-center:center:length*1j, -center:center:length*1j, -center:center:length*1j].reshape(3,-1).T.reshape(length, length, length, -1)
+    beam = coordinate_grid_3d(length ,dz)
     waist_radius = beam_waist_radius(wavelength, numerical_aperature)
-    u_xz = u_hermite_gaussian(beam[:, :, :, [0, 2]], L, waist_radius, wavelength);  #extract x, z coordinates from beam
-    u_yz = u_hermite_gaussian(beam[:, :, :, [1, 2]], M, waist_radius, wavelength);  #extract y, z coordinates from beam
-    normalized = u_xz * u_yz    #normalized beam which may be useful in the future
+    #extract x, z coordinates from beam.
+    u_xz = _u_hermite_gaussian(beam[:, :, :, [0, 2]], L, waist_radius, wavelength);
+    #extract y, z coordinates from beam.
+    u_yz = _u_hermite_gaussian(beam[:, :, :, [1, 2]], M, waist_radius, wavelength);
+    normalized = u_xz * u_yz #physically normalized beam which may be useful
 
-    #scale normalized beam such that E(0, 0, 0) is amplitude
+    #scale normalized beam such that E(0, 0, 0) is amplitude.
     return amplitude * normalized / normalized[length//2, length//2, length//2]
 
 def gaussian_axial_mode(
@@ -260,6 +297,8 @@ def gaussian_axial_mode(
     numerical_aperature: float = .125,
     amplitude: float = 1.,
 ):
+    """Returns psf for gaussian beam along propagation axis."""
+
     return (hermite_gaussian_mode(length, wavelength, dz, degree, 0, numerical_aperature, amplitude)[length//2, length//2, :])
 
 def gaussian_lateral_mode(
@@ -270,4 +309,6 @@ def gaussian_lateral_mode(
     numerical_aperature: float = .125,
     amplitude: float = 1.,
 ):
+    """Returns 1D lateral psf with discrete gaussian profile."""
+
     return (hermite_gaussian_mode(length, wavelength, dz, degree, 0, numerical_aperature, amplitude)[:, length//2, length//2])
