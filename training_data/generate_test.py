@@ -5,7 +5,7 @@ import tensorflow as tf
 from parameterized import parameterized
 
 from training_data import generate
-from simulation import observation_estimator
+from simulation import estimator
 
 
 class GenerateTest(tf.test.TestCase):
@@ -22,7 +22,7 @@ class GenerateTest(tf.test.TestCase):
     true_scatter = np.random.rand(*distribution_shape).astype(np.float32)
     true_observation = np.random.rand(*observation_shape).astype(np.float32)
 
-    true_observation_spec = observation_estimator.ObservationSpec([0, np.pi / 2], [1.5], .23, .2, .8)
+    true_observation_spec = estimator.ObservationSpec([0, np.pi / 2], [1.5], .23, .2, .8)
     example = generate._construct_example(
       true_scatter, true_observation, true_observation_spec)
 
