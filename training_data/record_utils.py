@@ -49,17 +49,27 @@ def _construct_example(
 
   Returns:
     `tf.train.Example`.
+
+  Raises:
+    ValueError: if `distribution` or `observation` have bad Dtype.
   """
+  if distribution.dtype != np.float32:
+    raise ValueError("`distribution` must have dtype `float32` got {}"
+                     "".format(distribution.dtype))
+  if observation.dtype != np.float32:
+    raise ValueError("`observation` must have dtype `float32` got {}"
+                     "".format(observation.dtype))
+
   distribution = tf.make_tensor_proto(distribution)
   observation = tf.make_tensor_proto(observation)
 
   return tf.train.Example(features=tf.train.Features(feature={
     'distribution': _bytes_feature(distribution.SerializeToString()),
     'observation': _bytes_feature(observation.SerializeToString()),
-    'observation_params/angles': _float_list_feature(
-      observation_params.angles),
-    'observation_params/frequencies': _float_list_feature(
-      observation_params.frequencies),
+    'observation_params/angles': _bytes_feature(tf.make_tensor_proto(
+      observation_params.angles).SerializeToString()),
+    'observation_params/frequencies': _bytes_feature(tf.make_tensor_proto(
+      observation_params.frequencies).SerializeToString()),
     'observation_params/grid_dimension': _float_feature(
       observation_params.grid_dimension),
     'observation_params/transducer_bandwidth': _float_feature(
@@ -86,8 +96,8 @@ def _parse_example(example_serialized: tf.Tensor):
   feature_map = {
     'distribution': tf.FixedLenFeature([], tf.string),
     'observation': tf.FixedLenFeature([], tf.string),
-    'observation_params/angles': tf.VarLenFeature(tf.float32),
-    'observation_params/frequencies': tf.VarLenFeature(tf.float32),
+    'observation_params/angles': tf.FixedLenFeature([], tf.string),
+    'observation_params/frequencies': tf.FixedLenFeature([], tf.string),
     'observation_params/grid_dimension': tf.FixedLenFeature([1], tf.float32),
     'observation_params/transducer_bandwidth': tf.FixedLenFeature([1],
                                                                   tf.float32),
@@ -102,9 +112,8 @@ def _parse_example(example_serialized: tf.Tensor):
 
   # Return `ObservationSpec` object.
   observation_params = {
-    "angles": tf.sparse.to_dense(features['observation_params/angles']),
-    "frequencies": tf.sparse.to_dense(
-      features['observation_params/frequencies']),
+    "angles": tf.io.parse_tensor(features['observation_params/angles'], tf.float32),
+    "frequencies": tf.io.parse_tensor(features['observation_params/frequencies'], tf.float32),
     "grid_dimension": features['observation_params/grid_dimension'],
     "transducer_bandwidth": features[
       'observation_params/transducer_bandwidth'],
