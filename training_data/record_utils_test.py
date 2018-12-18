@@ -5,7 +5,6 @@ import tensorflow as tf
 from parameterized import parameterized
 
 from training_data import record_utils
-from simulation import estimator
 from simulation import defs
 
 
