@@ -3,9 +3,10 @@
 import tensorflow as tf
 import numpy as np
 from simulation import utils
+from simulation import defs
 
 _FWHM_STANDARD_DEVIATION_RATIO = 2.355
-_SOUND_SPEED_WATER = 1498  # In meters.
+_SOUND_SPEED_WATER = defs._SPEED_OF_SOUND_WATER  # In meters.
 _FWHM_1_OVER_E_SQUARED = 1.699
 
 def gaussian_axial(
