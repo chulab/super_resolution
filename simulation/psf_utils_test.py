@@ -43,6 +43,16 @@ class PsfUtilsTest(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "All PSF's must be 1D"):
       psf_utils.to_filter(psfs, "FROM_SAME")
 
+  def testBadLateralShape(self):
+    with self.assertRaisesRegex(
+        ValueError, "`psf_length` must be odd."):
+      psf_utils.lateral_psf_filters(12, [.1, .2], 2., .1)
+
+  def testBadAxialShape(self):
+    with self.assertRaisesRegex(
+        ValueError, "`psf_length` must be odd."):
+      psf_utils.axial_psf_filters(12, [.1, .2], 2., .1, .1)
+
 
 if __name__ == "__main__":
   unittest.main()
