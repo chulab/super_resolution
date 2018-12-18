@@ -1,10 +1,10 @@
-"""Tests for `generate.py`"""
+"""Tests for `record_utils.py`"""
 
 import numpy as np
 import tensorflow as tf
 from parameterized import parameterized
 
-from training_data import generate
+from training_data import record_utils
 from simulation import estimator
 
 
@@ -23,12 +23,12 @@ class GenerateTest(tf.test.TestCase):
     true_observation = np.random.rand(*observation_shape).astype(np.float32)
 
     true_observation_spec = estimator.ObservationSpec([0, np.pi / 2], [1.5], .23, .2, .8)
-    example = generate._construct_example(
+    example = record_utils._construct_example(
       true_scatter, true_observation, true_observation_spec)
 
     example_str = example.SerializeToString()
 
-    scatterer_distribution_, observation_, observation_params_ = generate._parse_example(
+    scatterer_distribution_, observation_, observation_params_ = record_utils._parse_example(
       example_str)
     with tf.Session() as sess:
       test_scatter, test_observation, test_observation_params = sess.run(
