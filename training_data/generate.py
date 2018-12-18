@@ -2,32 +2,7 @@
 
 import numpy as np
 import tensorflow as tf
-from collections import namedtuple
-
-
-class ObservationSpec(namedtuple(
-  'ObservationSpec', ['angles', 'frequencies', 'grid_dimension',
-                      'transducer_bandwidth', 'numerical_aperture'])):
-  """ObservationSpec contains parameters associated with US observation."""
-
-  def __new__(cls, angles, frequencies, grid_dimension, transducer_bandwidth,
-              numerical_aperture):
-    assert isinstance(angles, list)
-    if not all(0. <= angle < np.pi for angle in angles):
-      raise ValueError("All angle in `angles` must be scalars between 0 and "
-                       "pi. Got {}.".format(angles))
-
-    assert isinstance(frequencies, list)
-
-    assert isinstance(grid_dimension, float)
-
-    assert isinstance(transducer_bandwidth, float)
-
-    assert isinstance(numerical_aperture, float)
-
-    return super(ObservationSpec, cls).__new__(
-      cls, angles, frequencies, grid_dimension, transducer_bandwidth,
-      numerical_aperture)
+from simulation import observation_estimator
 
 def _bytes_feature(value):
   """Returns a bytes_list from a string / byte."""
@@ -54,7 +29,11 @@ def _int64_list_feature(value):
   return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
 
 
-def _construct_example(distribution, observation, observation_params):
+def _construct_example(
+    distribution: np.ndarray,
+    observation: np.ndarray,
+    observation_params: observation_estimator.ObservationSpec
+):
   """Constructs `tf.train.Example` for scatterer distribution and simulation.
 
   This function converts a pair of `distribution` and `observation` and
@@ -71,17 +50,12 @@ def _construct_example(distribution, observation, observation_params):
   Returns:
     `tf.train.Example`.
   """
-  distribution_shape = list(distribution.shape)
-  distribution_str = distribution.tostring()
-
-  observation_shape = list(observation.shape)
-  observation_str = observation.tostring()
+  distribution = tf.make_tensor_proto(distribution)
+  observation = tf.make_tensor_proto(observation)
 
   return tf.train.Example(features=tf.train.Features(feature={
-    'distribution/bytes': _bytes_feature(tf.compat.as_bytes(distribution_str)),
-    'distribution/shape': _int64_list_feature(distribution_shape),
-    'observation/bytes': _bytes_feature(tf.compat.as_bytes(observation_str)),
-    'observation/shape': _int64_list_feature(observation_shape),
+    'distribution': _bytes_feature(distribution.SerializeToString()),
+    'observation': _bytes_feature(observation.SerializeToString()),
     'observation_params/angles': _float_list_feature(
       observation_params.angles),
     'observation_params/frequencies': _float_list_feature(
@@ -105,15 +79,13 @@ def _parse_example(example_serialized: tf.Tensor):
       buffer.
 
   Returns:
-    scatterer_distribution: See `_construct_example`.
+    distribution: See `_construct_example`.
     observation: See `_construct_example`.
     observation_params: See `_construct_example`.
   """
   feature_map = {
-    'distribution/bytes': tf.FixedLenFeature([], tf.string),
-    'distribution/shape': tf.VarLenFeature(tf.int64),
-    'observation/bytes': tf.FixedLenFeature([], tf.string),
-    'observation/shape': tf.VarLenFeature(tf.int64),
+    'distribution': tf.FixedLenFeature([], tf.string),
+    'observation': tf.FixedLenFeature([], tf.string),
     'observation_params/angles': tf.VarLenFeature(tf.float32),
     'observation_params/frequencies': tf.VarLenFeature(tf.float32),
     'observation_params/grid_dimension': tf.FixedLenFeature([1], tf.float32),
@@ -125,16 +97,8 @@ def _parse_example(example_serialized: tf.Tensor):
 
   features = tf.parse_single_example(example_serialized, feature_map)
 
-  scatterer_distribution = tf.decode_raw(features['distribution/bytes'],
-                                         tf.float32)
-  scatterer_distribution_shape = tf.sparse.to_dense(
-    features['distribution/shape'])
-  scatterer_distribution = tf.reshape(scatterer_distribution,
-                                      scatterer_distribution_shape)
-
-  observation = tf.decode_raw(features['observation/bytes'], tf.float32)
-  observation_shape = tf.sparse.to_dense(features['observation/shape'])
-  observation = tf.reshape(observation, observation_shape)
+  distribution = tf.io.parse_tensor(features['distribution'], tf.float32)
+  observation = tf.io.parse_tensor(features['observation'], tf.float32)
 
   # Return `ObservationSpec` object.
   observation_params = {
@@ -147,4 +111,4 @@ def _parse_example(example_serialized: tf.Tensor):
     "numerical_aperture": features['observation_params/numerical_aperture'],
   }
 
-  return scatterer_distribution, observation, observation_params
+  return distribution, observation, observation_params
