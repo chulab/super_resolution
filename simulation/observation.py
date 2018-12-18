@@ -6,7 +6,6 @@ from typing import Optional, Tuple
 from simulation import complex_convolution
 from simulation import tensor_utils
 
-
 def observe(
     state: tf.Tensor,
     psf_lateral: tf.Tensor,

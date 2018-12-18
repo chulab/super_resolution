@@ -3,10 +3,15 @@
 import numpy as np
 
 from typing import List
+
+from simulation import defs
 from simulation import response_functions
+from simulation import estimator
 
 _FROM_SAME = "FROM_SAME"
 _FROM_SINGLE = "FROM_SINGLE"
+_LATERAL = "LATERAL"
+_AXIAL = "AXIAL"
 
 
 def to_filter(
@@ -96,3 +101,17 @@ def axial_psf_filters(
     for wavelength in wavelengths]
   return to_filter(psf_axial, mode="FROM_SAME")
 
+def psf_filter(
+    type: str,
+    length: int,
+    observation_spec: defs.ObservationSpec,
+):
+  """Convenience function to construct psf filter from `ObservationSpec`."""
+  wavelengths = [defs._SPEED_OF_SOUND_WATER / freq for freq in
+                 observation_spec.frequencies]
+  if type == _LATERAL:
+    return lateral_psf_filters(length, wavelengths, observation_spec.numerical_aperture, observation_spec.grid_dimension,)
+  if type == _AXIAL:
+    return axial_psf_filters(length, wavelengths, observation_spec.numerical_aperture, observation_spec.transducer_bandwidth, observation_spec.grid_dimension)
+  else:
+    raise ValueError("`type` must be one of {}, got {}".format([_LATERAL, _AXIAL], type))
