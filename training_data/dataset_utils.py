@@ -16,7 +16,7 @@ def array_input_fn(array: np.ndarray, mode: str, batch_size: int):
 
   dataset = tf.data.Dataset.from_tensor_slices(array)
 
-  if mode == "train":
+  if mode == _TRAIN:
     dataset = dataset.shuffle(1000).repeat()
 
   dataset = dataset.batch(batch_size)
