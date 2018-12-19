@@ -98,10 +98,10 @@ def _parse_example(example_serialized: tf.Tensor):
     'observation': tf.FixedLenFeature([], tf.string),
     'observation_params/angles': tf.FixedLenFeature([], tf.string),
     'observation_params/frequencies': tf.FixedLenFeature([], tf.string),
-    'observation_params/grid_dimension': tf.FixedLenFeature([1], tf.float32),
-    'observation_params/transducer_bandwidth': tf.FixedLenFeature([1],
+    'observation_params/grid_dimension': tf.FixedLenFeature([], tf.float32),
+    'observation_params/transducer_bandwidth': tf.FixedLenFeature([],
                                                                   tf.float32),
-    'observation_params/numerical_aperture': tf.FixedLenFeature([1],
+    'observation_params/numerical_aperture': tf.FixedLenFeature([],
                                                                 tf.float32),
   }
 
