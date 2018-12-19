@@ -63,7 +63,10 @@ class ObservationEstimatorTest(tf.test.TestCase):
     estimator_result = test_estimator.predict(input_fn,
                                               yield_single_examples=False)
 
-    self.assertAllClose(real_result, next(estimator_result)["observation"])
+    output = next(estimator_result)
+    self.assertAllClose(real_result, output["observation"])
+    self.assertAllEqual(angles, output["angles"])
+    self.assertAllEqual(distribution, output["distribution"])
 
   def testSimulationEstimatorBadMode(self):
     distribution = np.random.rand(10, 20, 20)

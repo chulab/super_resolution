@@ -80,7 +80,7 @@ def simulation_model_fn(features, labels, mode, params):
       "angles": angles,
       "psf_lateral": psf_lateral_filter,
       "psf_axial": psf_axial_filter,
-      "input": distribution,
+      "distribution": distribution,
       "observation": simulated_observation,
   }
 
