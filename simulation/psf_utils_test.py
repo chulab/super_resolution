@@ -4,7 +4,8 @@ import unittest
 import numpy as np
 
 from simulation import psf_utils
-from simulation import estimator_test
+from simulation import defs_test
+
 
 class PsfUtilsTest(unittest.TestCase):
 
@@ -58,7 +59,8 @@ class PsfUtilsTest(unittest.TestCase):
 
   def testFromObservationSpecBadType(self):
     with self.assertRaisesRegex(ValueError, "`type` must be one of"):
-      psf_utils.psf_filter("NOT_A_REAL_TYPE", 11, estimator_test.simple_observation_spec())
+      psf_utils.psf_filter("NOT_A_REAL_TYPE", 11,
+                           defs_test.simple_observation_spec())
 
 
 if __name__ == "__main__":
