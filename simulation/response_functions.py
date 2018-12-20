@@ -228,7 +228,9 @@ def coordinate_grid_3d(
       [x, y, z] coordinate corresponding to point [length, length, length] in
       the physical grid.
     """
+
     center = length // 2 * dz
+
     #If center = 1 and center = 3,
     #X = [[[-1, -1, -1] x 3] [[0, 0, 0] x 3] [[1, 1, 1] x 3]]
     #Y = [[[-1, -1, -1] [0, 0, 0] [1, 1, 1]] x 3]
@@ -241,6 +243,7 @@ def coordinate_grid_3d(
     #e.g. [[-1, -1, -1], [-1, -1, 0], [-1, -1, 1] ...  ]
     X, Y, Z = np.mgrid[-center:center:length*1j, -center:center:length*1j, -center:center:length*1j];
     XYZ = np.array([X.flatten(), Y.flatten(), Z.flatten()]).T
+
     #reshape XYZ which is 1-d to 3-d.
     coordinate_grid = XYZ.reshape(length, length, length, -1)
 
@@ -280,8 +283,10 @@ def hermite_gaussian_mode(
 
     beam = coordinate_grid_3d(length ,dz)
     waist_radius = beam_waist_radius(wavelength, numerical_aperature)
+
     #extract x, z coordinates from beam.
     u_xz = _u_hermite_gaussian(beam[:, :, :, [0, 2]], L, waist_radius, wavelength);
+    
     #extract y, z coordinates from beam.
     u_yz = _u_hermite_gaussian(beam[:, :, :, [1, 2]], M, waist_radius, wavelength);
     normalized = u_xz * u_yz #physically normalized beam which may be useful
