@@ -286,7 +286,7 @@ def hermite_gaussian_mode(
 
     #extract x, z coordinates from beam.
     u_xz = _u_hermite_gaussian(beam[:, :, :, [0, 2]], L, waist_radius, wavelength);
-    
+
     #extract y, z coordinates from beam.
     u_yz = _u_hermite_gaussian(beam[:, :, :, [1, 2]], M, waist_radius, wavelength);
     normalized = u_xz * u_yz #physically normalized beam which may be useful
@@ -317,3 +317,52 @@ def gaussian_lateral_mode(
     """Returns 1D lateral psf with discrete gaussian profile."""
 
     return (hermite_gaussian_mode(length, wavelength, dz, degree, 0, numerical_aperature, amplitude)[:, length//2, length//2])
+
+def frequency_bandwidth_with_gaussian_noise(
+    length: int,
+    dz: float,
+    center_frequency: float,
+    frequency_bandwidth: float,
+    gaussian_sigma: float,
+    amplitude: float = 1.,
+):
+    """Returns psf along propagation axis due to beam obtained from inverse-
+    fourier transform of a frequency bandwidth, convolved with a normalized
+    gaussian noise, both around center_frequency.
+
+    Args:
+        length: int denoting number of pixels.
+        dz: float denoting grid size in meters.
+        center_frequency: frequency of center of bandwidth in Hz.
+        frequency_bandwidth: difference between max and min frequency in Hz.
+        gaussian_sigma: standard deviation of gaussian noise.
+        amplitude: float denoting amplitude of beam (at z = 0).
+
+    Returns:
+    `np.ndarray` of shape `[length]`.
+
+    The inverse fourier transform of f * g is simply the multiplication of the
+    inverse fourier transform of f with the inverse fourier transform of g.
+
+    The inverse fourier transform of a rectangular pulse is sinc so the inverse
+    transform of the frequency bandwidth can be shown to be
+    cos(2pi f_ct) sinc(bt) where f_c is the center_frequency and b is the
+    frequency bandwidth.
+
+    The inverse fourier transform of the gaussian noise centered about f_c is
+    cos(2pi f_ct) e^{-2pi^2 gaussian_sigma^2 t^2}.
+    """
+
+    if length % 2 != 1:
+      raise ValueError("`length` must be odd, but got {}".format(length))
+
+    center_z = length // 2 * dz
+    z = np.linspace(-center_z, center_z, length)
+    t = z / _SOUND_SPEED_WATER
+
+    inverse_freq = np.cos(2 * np.pi * center_frequency * t) * np.sinc(frequency_bandwidth * t)
+    inverse_gaussian = np.cos(2 * np.pi * center_frequency * t) * np.exp(-2 * (np.pi * gaussian_sigma * t) ** 2)
+
+    normalized = inverse_freq * inverse_gaussian
+
+    return  amplitude * normalized / normalized[length//2]
