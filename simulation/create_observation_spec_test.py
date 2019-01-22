@@ -11,7 +11,7 @@ from simulation import defs
 from simulation import create_observation_spec
 
 
-class GenerateRecordsTest(unittest.TestCase):
+class CresteObservationSpecTest(unittest.TestCase):
 
   def setUp(self):
     # Create a test directory.
@@ -21,7 +21,7 @@ class GenerateRecordsTest(unittest.TestCase):
     # Remove the directory after the test
     shutil.rmtree(self.test_dir)
 
-  def testCreateRecord(self):
+  def testCreateObservationSpec(self):
     angles=[0, 1., 2.]
     frequencies=[3.e6, 4.e2, 5.e6]
     grid_dimension=.5e-4
@@ -42,7 +42,7 @@ class GenerateRecordsTest(unittest.TestCase):
     ]
     with patch.object(sys, 'argv', test_args):
       create_observation_spec.main()
-    file = os.path.join(self.test_dir, 'test_name')
+    file = os.path.join(self.test_dir, 'test_name.json')
     with open(file) as f:
       loaded_spec = defs.ObservationSpec(**json.load(f))
     self.assertSequenceEqual(loaded_spec, true_spec)
