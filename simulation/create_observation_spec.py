@@ -9,9 +9,9 @@ from simulation import defs
 def save_observation_spec(
     observation_spec: defs.ObservationSpec,
     save_dir: str,
-    name: str = "observation_spec.json"
+    name: str = "observation_spec"
 ):
-  file_name = os.path.join(save_dir, name)
+  file_name = os.path.join(save_dir, name + ".json")
 
   with open(file_name, "w") as file:
     file.write(json.dumps(observation_spec._asdict()))
@@ -70,5 +70,3 @@ def main():
 
 if __name__ == "__main__":
   main()
-
-
