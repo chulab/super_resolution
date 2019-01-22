@@ -1,8 +1,11 @@
 """Tests for `generate_records.py`"""
 import glob
+import os
+import sys
 import shutil
 import tempfile
 from parameterized import parameterized
+from unittest.mock import patch
 
 import numpy as np
 import tensorflow as tf
@@ -10,6 +13,7 @@ import tensorflow as tf
 from simulation import defs
 from simulation import defs_test
 from simulation import estimator
+from simulation import create_observation_spec
 from training_data import generate_records
 from training_data import record_utils
 from training_data import dataset_utils
@@ -192,6 +196,71 @@ class GenerateRecordsTest(tf.test.TestCase):
       dataset_name, output_directory, examples_per_shard)
 
     files = sorted(glob.glob(self.test_dir + "/*"))
+    print(files)
+    test_dataset = tf.data.TFRecordDataset(files)
+    test_dataset = test_dataset.map(record_utils._parse_example)
+    iterator = test_dataset.make_one_shot_iterator()
+    saved_dist, saved_obs, saved_obs_params = iterator.get_next()
+
+    obs_eval_ = []
+    with self.test_session() as sess:
+      for i  in range(dataset_size):
+        dist_eval, obs_eval, params_eval = sess.run(
+          [saved_dist, saved_obs, saved_obs_params])
+
+        obs_eval_.append(obs_eval)
+
+        self.assertAllEqual(distributions[i], dist_eval)
+        self.assertAllClose(observation_spec._asdict(), params_eval)
+
+    test_simulation_estimator = estimator.SimulationEstimator(
+      observation_spec, axial_psf_length, lateral_psf_length
+    )
+    test_obs = test_simulation_estimator.predict(
+      lambda: dataset_utils.array_input_fn(distributions, "PREDICT", 1),
+      yield_single_examples=False,
+    )
+
+    for sim_obs, saved_obs in zip(next(test_obs)["observation"], obs_eval_):
+      self.assertAllEqual(sim_obs, saved_obs)
+
+  def testCreateCLI(self):
+    """Tests CLI implementation of `generate_records`."""
+    dataset_size = 50
+    distributions = np.random.rand(dataset_size, 10, 10).astype(np.float32)
+    distribution_path = self.test_dir + "/distribution"
+    np.save(distribution_path, distributions)
+
+    axial_psf_length = 5
+    lateral_psf_length = 5
+    dataset_name = "test_name"
+    output_directory = os.path.join(self.test_dir, "dataset")
+    os.mkdir(output_directory)
+    examples_per_shard = 50
+
+    observation_spec = defs_test.simple_observation_spec()
+    observation_spec_dir = os.path.join(self.test_dir, "observation_spec_dir")
+    os.mkdir(observation_spec_dir)
+
+    observation_spec_filename = "observation_spec"
+    create_observation_spec.save_observation_spec(
+      observation_spec, observation_spec_dir, observation_spec_filename)
+
+    test_args = ["test_arg",
+      "-o", output_directory,
+      "-d", distribution_path + ".npy",
+      "-s", os.path.join(observation_spec_dir,
+                         observation_spec_filename + ".json"),
+      "-n", dataset_name,
+      "-eps", "{}".format(examples_per_shard),
+      "-lpsf", "{}".format(lateral_psf_length),
+      "-apsf", "{}".format(axial_psf_length),
+    ]
+    with patch.object(sys, 'argv', test_args):
+      # Write records using CLI.
+      generate_records.main()
+
+    files = sorted(glob.glob(output_directory + "/*"))
     test_dataset = tf.data.TFRecordDataset(files)
     test_dataset = test_dataset.map(record_utils._parse_example)
     iterator = test_dataset.make_one_shot_iterator()

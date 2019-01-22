@@ -1,6 +1,18 @@
-"""Main file to generate and save distribution/observation dataset."""
+"""Generate and save distribution/observation dataset.
+
+Example usage:
+# generate_records \
+# -o OUTPUT_DIR \
+# -d DISTRIBUTION_PATH \
+# -s SIMULATION_PARAM_PATH \
+# -n test_name \
+# -eps 50 \
+# -lpsf 5 \
+# -apsf 5 \
+"""
 import argparse
 from datetime import datetime
+import json
 import math
 import os
 import sys
@@ -24,23 +36,31 @@ def _dataset_from_generator(
   observation_spec: defs.ObservationSpec,
   output_directory: str,
   dataset_name: str,
-  num_examples_in_dataset: int,
+  examples_in_dataset: int,
   examples_per_shard: int,
 ):
   """Saves simulation examples produced by generator to sharded files.
+
+  Each file is a `TFRecords` file named `[datset_name]-n-of-[shard_count]`
 
   Args:
     generator: Generator which returns a dictonary containing `distribution`
       and `observation` elements. Both should have shape
       `[batch, height, width]`.
+    observation_spec: `ObservationSpec` to be saved as part of tfRecord.
+    output_directory: String. Top level directory to save dataset shards.
+    dataset_name: String used as base for dataset file shards.
+    examples_in_dataset: Number of `Example` in dataset. The generator should
+      return at least this many elements before throwing `StopIteration`.
+    examples_per_shard: Number of `Example` to save per shard.
   """
 
-  num_shards = math.ceil(num_examples_in_dataset / examples_per_shard)
+  shard_count = math.ceil(examples_in_dataset / examples_per_shard)
 
   counter = 0
-  for shard in range(num_shards):
+  for shard in range(shard_count):
     # Generate a sharded version of the file name, e.g. 'train-00002-of-00010'
-    output_filename = '%s-%.5d-of-%.5d' % (dataset_name, shard + 1, num_shards)
+    output_filename = '%s-%.5d-of-%.5d' % (dataset_name, shard + 1, shard_count)
     output_file = os.path.join(output_directory, output_filename)
     writer = tf.python_io.TFRecordWriter(output_file)
     shard_counter = 0
@@ -73,16 +93,16 @@ def _dataset_from_generator(
         if not counter % 500:
           print(
             '%s : Processed %d of %d images in batch.' %
-            (datetime.now(), counter, num_examples_in_dataset))
+            (datetime.now(), counter, examples_in_dataset))
           sys.stdout.flush()
 
     writer.close()
-    print('%s : Wrote %d images to %s' %
+    print('%s : Wrote %d examples to %s' %
           (datetime.now(), shard_counter, output_file))
     sys.stdout.flush()
 
-  print('%s : Wrote %d images to %d shards.' %
-        (datetime.now(), counter, num_shards))
+  print('%s : Wrote %d examples to %d shards.' %
+        (datetime.now(), counter, shard_count))
   sys.stdout.flush()
 
 
@@ -159,32 +179,37 @@ def create(
 def parse_args():
   parser = argparse.ArgumentParser()
 
-  parser.add_argument('--observation_dataset_path', dest='observation_dataset_path',
+  parser.add_argument('-o', '--output_dir', dest='output_dir',
+                      help='Path to save the dataset.',
+                      type=str,
+                      required=True)
+
+  parser.add_argument('-d', '--distribution', dest='distribution_path',
                       help='Path to the scatterer distribution dataset (np.ndarray).',
                       type=str,
                       required=True)
 
-  parser.add_argument('--simulation_param_path',
+  parser.add_argument('-s', '--simulation_param_path',
                       dest='simulation_param_path',
                       help='Path to the simulation param JSON file.',
                       type=str,
                       required=True)
 
-  parser.add_argument('--prefix', dest='dataset_name',
+  parser.add_argument('-n', '--name', dest='dataset_name',
                       help='Prefix for the tfrecords (e.g. `train`, `test`, `val`).',
                       type=str,
                       required=True)
 
-  parser.add_argument('--output_dir', dest='output_dir',
-                      help='Directory for the tfrecords.', type=str,
-                      required=True)
-
-  parser.add_argument('--shards', dest='num_shards',
+  parser.add_argument('-eps', '--examples_per_shard', dest='examples_per_shard',
                       help='Number of shards to make.', type=int,
                       required=True)
 
-  parser.add_argument('--lateral_psf_length', dest='lateral_psf_length',
-                      help='Number of shards to make.', type=int,
+  parser.add_argument('-lpsf', '--lateral_psf_length', dest='lateral_psf_length',
+                      help='Length of lateral psf', type=int,
+                      required=True)
+
+  parser.add_argument('-apsf', '--axial_psf_length', dest='axial_psf_length',
+                      help='Length of axial psf', type=int,
                       required=True)
 
   parsed_args = parser.parse_args()
@@ -195,18 +220,22 @@ def parse_args():
 def main():
   args = parse_args()
 
-  with open(args.observation_dataset_path) as f:
-    dataset = np.load(f)
+  with open(args.distribution_path, 'rb') as f:
+    distributions = np.load(f)
 
   with open(args.simulation_param_path) as f:
-    simulation_params = json.load(f)
-
-
+    observation_spec = defs.ObservationSpec(**json.load(f))
 
   create(
-    dataset=dataset,
+    distributions=distributions,
+    observation_spec=observation_spec,
+    axial_psf_length=args.axial_psf_length,
+    lateral_psf_length=args.lateral_psf_length,
     dataset_name=args.dataset_name,
     output_directory=args.output_dir,
-    num_shards=args.num_shards,
-    simulation_params=args.simulation_params
+    examples_per_shard=args.examples_per_shard,
   )
+
+
+if __name__ == "__main__":
+  main()
