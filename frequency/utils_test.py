@@ -3,7 +3,7 @@
 import unittest
 import numpy as np
 
-from frequency_compounding import utils
+from frequency import utils
 
 
 class utilsTest(unittest.TestCase):

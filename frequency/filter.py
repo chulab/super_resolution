@@ -4,7 +4,7 @@ from typing import List
 
 import numpy as np
 
-from frequency_compounding import utils
+from frequency import utils
 from utils import array_utils
 
 

@@ -4,8 +4,8 @@ import unittest
 import random
 import numpy as np
 
-from frequency_compounding import filter
-from frequency_compounding import utils
+from frequency import filter
+from frequency import utils
 
 class filterTest(unittest.TestCase):
 
