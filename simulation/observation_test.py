@@ -8,6 +8,121 @@ import numpy as np
 from simulation import observation
 
 
+class ObservationV2Test(tf.test.TestCase):
+
+  def startUp(self):
+    tf.reset_default_graph()
+
+
+  @parameterized.expand([
+    ([2, 3, 1],),
+    ([10, 12, 15, 3, 1],),
+  ])
+  def testIdentityPsfSingleChannel(self, state_shape):
+    impulse = tf.ones([1, 1, 1, 1])
+    state = tf.random_uniform(state_shape)
+    observed_state = observation.observe_v2(state, impulse)
+    with self.test_session() as sess:
+      state_eval, observed_state_eval = sess.run([state, observed_state])
+      self.assertAllClose(observed_state_eval, state_eval)
+
+  @parameterized.expand([
+    ([2, 3, 1], [1, 2.]),
+    ([10, 12, 15, 3, 1], [1, 1.3, 3.4, 5.6]),
+  ])
+  def testIdentityPsfMultiChannel(self, state_shape, channel_multiplier):
+    channel_multiplier = tf.convert_to_tensor(channel_multiplier)
+    impulse = channel_multiplier[tf.newaxis, tf.newaxis, tf.newaxis, :]
+    state = tf.random_uniform(state_shape)
+    true_observation = state * channel_multiplier
+
+    observed_state = observation.observe_v2(state, impulse)
+    with self.test_session() as sess:
+      state_eval, observed_state_eval = sess.run([true_observation, observed_state])
+      self.assertAllClose(observed_state_eval, state_eval)
+
+  def testRealPsfSingleChannel(self):
+    impulse = tf.random_uniform([4, 4, 1, 1])
+    state = tf.random_uniform([1, 10, 10, 1])
+    observed_state = observation.observe_v2(state, impulse)
+
+    real_convolution = \
+      tf.nn.conv2d(state, impulse, strides=[1, 1, 1, 1],
+                   padding="SAME")
+
+    with self.test_session() as sess:
+      observed_state_eval, real_eval = sess.run(
+        [observed_state, real_convolution])
+      self.assertAllClose(observed_state_eval, real_eval)
+
+  def testRealPsfMultiChannel(self):
+    state = tf.random_uniform([1, 10, 10, 1])
+    impulse = tf.random.uniform([2, 2, 1, 7])
+    observed_state = observation.observe_v2(state, impulse)
+
+    real_convolution = \
+      tf.nn.conv2d(state, impulse, strides=[1, 1, 1, 1],
+                   padding="SAME")
+
+    with self.test_session() as sess:
+      observed_state_eval, real_eval = sess.run(
+        [observed_state, real_convolution])
+      self.assertAllClose(real_eval, observed_state_eval)
+
+  @parameterized.expand([
+    ([10],),
+    ([10, 10],),
+  ])
+  def testBadStateShape(self, shape):
+    impulse = tf.ones([10] * 4)
+    state = tf.random_uniform(shape)
+    with self.assertRaisesRegex(ValueError, "State must be at least 3D"):
+      observation.observe_v2(state, impulse)
+
+
+class RotateAndObserveV2Test(tf.test.TestCase):
+
+  @parameterized.expand([
+    ([5] * 1,),
+    ([5] * 2,),
+    ([5] * 4,),
+  ])
+  def testBadState(self, shape):
+    state = tf.random_uniform(shape)
+    with self.assertRaisesRegex(ValueError, "`state` must be 3D"):
+      observation.rotate_and_observe_v2(
+        state, tf.ones([1]), tf.ones([1] * 4))
+
+  def testNoRotationIdentity(self):
+    state = tf.random_uniform([5, 5, 5])
+    impulse = tf.ones([1] * 4)
+    angles = tf.zeros([7])
+    observed = observation.rotate_and_observe_v2(state, angles, impulse)
+    true_state = tf.tile(state[:, tf.newaxis, :, :, tf.newaxis], [1, 7, 1, 1, 1])
+    with self.test_session() as sess:
+      truth_eval, observed_eval = sess.run([true_state, observed])
+      self.assertAllClose(truth_eval, observed_eval)
+
+  def testWithRotationIdentity(self):
+    state = tf.random_uniform([5, 5, 5])
+    impulse = tf.ones([1] * 4)
+    angles = tf.random_uniform([6])
+    observed = observation.rotate_and_observe_v2(state, angles, impulse)
+    truth = []
+    for slice in range(6):
+      truth.append(
+        tf.contrib.image.rotate(
+          tf.contrib.image.rotate(state[:, :, :, tf.newaxis], angles[slice],  "BILINEAR"),
+          -1 * angles[slice],  "BILINEAR",
+        )
+      )
+    truth = tf.stack(truth, 1)
+
+    with self.test_session() as sess:
+      truth_eval, observed_eval = sess.run([truth, observed])
+      self.assertAllClose(truth_eval, observed_eval)
+
+
 class ObservationTest(tf.test.TestCase):
 
   def startUp(self):
