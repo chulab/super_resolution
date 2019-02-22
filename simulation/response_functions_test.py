@@ -80,10 +80,6 @@ class utilsTest(unittest.TestCase):
     )
 
 
-  def coordinateGridTestCenter(self):
-    lengths = [1, 2, 3]
-
-
 
 if __name__ == "__main__":
   unittest.main()
