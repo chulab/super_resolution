@@ -1,7 +1,9 @@
 """Contains 1D response functions (PSF) to model US devices."""
 
-import tensorflow as tf
 import numpy as np
+
+from typing import List
+
 from simulation import utils
 from simulation import defs
 
@@ -121,8 +123,8 @@ def gaussian_pulse(
 def gaussian_lateral(
     length: int,
     wavelength: float,
-    numerical_aperature: float,
     dz: float,
+    numerical_aperature: float = .125,
 ):
   """Returns 1D lateral psf with discrete gaussian profile.
 
@@ -140,3 +142,218 @@ def gaussian_lateral(
   half_length = length // 2
   points = np.arange(start=-half_length, stop=half_length + 1)
   return np.exp(-points ** 2 / waist_radius ** 2)
+
+
+def hermite_polynomial(
+    value: np.ndarray,
+    degree: int
+):
+    """Computes the physicists' Hermite polynomial of specified degree.
+
+    See `https://en.wikipedia.org/wiki/Hermite_polynomials`
+
+    Args:
+      value: `np.ndarray` of any shape.
+      degree: `int` denoting degree of Hermite polynomial.
+
+    Returns:
+      `np.ndarray` of same shape as `value`.
+    """
+    coefficients = np.zeros(degree+1)
+    coefficients[degree] = 1
+    return np.polynomial.hermite.hermval(value, coefficients)
+
+
+def _u_hermite_gaussian(
+    coordinates: np.ndarray,
+    degree: int,
+    waist_radius: float,
+    wavelength: float
+):
+    """Computes u_J(x, z) given in
+    `https://en.wikipedia.org/wiki/Gaussian_beam#Hermite-Gaussian_modes`.
+
+    Note that we use notation such that z refers to the direction of beam
+    propagation while x refers to a transverse direction.
+
+    Args:
+      beam: Either
+            `np.ndarray` of shape `batch_dimensions + [3]` where the last index
+             contains (x, y, z) coordinates.
+      degree: int denoting degree of hermite-gaussian.
+      waist_radius: float denoting w(0) in meters.
+      wavelength: float denoting wavelength in meters.
+
+    Returns:
+      According to options for beam above,
+      1. Cross-section: `np.ndarray` of shape `[length, length]` for u_J(x, z).
+      2. Full: `np.ndarray` of shape `[length, length, length]` for u_J(x, z).
+    """
+
+    if coordinates.shape[-1] != 2:
+        raise ValueError("Coordinates must contain ")
+
+    x = coordinates[..., 0]
+    z = coordinates[..., 1]
+
+    rayleigh_length = _rayleigh_length(waist_radius, wavelength)
+    waist_z = waist_radius * np.sqrt(1 + (z / rayleigh_length) ** 2)
+
+    complex_beam = _complex_beam_parameter(z, rayleigh_length)
+
+    norm_constant = np.sqrt(
+      np.sqrt(2 / np.pi) /
+      (np.exp2(degree) * np.math.factorial(degree) * waist_radius)
+    )
+
+    norm_z = np.sqrt(1j * waist_radius / complex_beam)
+    phase_shift = np.power(- np.conj(complex_beam) / complex_beam, degree/2)
+    hermite = hermite_polynomial(np.sqrt(2) * x / waist_z, degree)
+    amplitude_decay = np.exp(-1j * np.pi / wavelength * (x**2) / complex_beam)
+
+    return norm_constant * norm_z * phase_shift * hermite * amplitude_decay
+
+
+def _rayleigh_length(
+    waist_radius,
+    wavelength,
+):
+  return np.pi * waist_radius ** 2 / wavelength
+
+
+def _complex_beam_parameter(
+    z_coordinate,
+    rayleigh_length
+):
+  return z_coordinate + 1j * rayleigh_length
+
+
+def coordinate_grid(
+    lengths: List[float],
+    grid_dimensions: List[float],
+    center,
+):
+  """Creates coordinate meshgrids of arbitrary dimension.
+
+  This function returns a list of meshgrids corresponding to an N-D grid where
+  N is the length of `lengths` and `grid_dimensions`.
+
+  Args:
+    lengths: Lengths of axes in physical units.
+    grid_dimensions: Dimensions of grid spacing in same units as `lengths`.
+    center: If `True` then the coordinate grid will be centered at the origin.
+      If `False` then
+
+  Returns:
+    List of coordinate arrays where the `(x_i, ... x_j)`th element of the nth
+    array represents the n-coordinate at that element. For more information see
+    documentation for `np.meshgrid`.
+  """
+
+
+  if len(lengths) != len(grid_dimensions):
+    raise ValueError("`lengths` and `grid_dimensions` must have same number of "
+                     "elements")
+
+  coordinates = [np.arange(0, length + step, step) for
+                 length, step in zip(lengths, grid_dimensions)]
+
+  if center:
+    centers = [length / 2 for length in lengths]
+    coordinates = [coor - center for coor, center in zip(coordinates, centers)]
+
+  return np.meshgrid(*coordinates, indexing='ij')
+
+
+def hermite_gaussian_mode(
+    coordinates: np.ndarray,
+    wavelength: float,
+    L: int,
+    M: int = 0,
+    numerical_aperature: float = .125,
+):
+    """Computes complex E(x, y, z) over the volume of a
+    `length * dz` x `length * dz` x `length * dz` cube centered at the origin.
+
+    See `https://en.wikipedia.org/wiki/Gaussian_beam#Hermite-Gaussian_modes`
+
+    Args:
+      coordinates: Array of shape `dimensions + [3]` where entries in the last
+        contain 3D coordinates `[x, y, z]` at which to evaluate `gaussian`.
+      wavelength: Float denoting wavelength in meters.
+      dz: float denoting grid size in meters.
+      L : int denoting L order of hermite-gaussian.
+      M : int denoting M order of hermite-gaussian.
+      numerical_aperture: float denoting NA of collecting apparatus.
+      amplitude: float denoting amplitude of beam (specifically, E(0, 0, 0)).
+
+    Returns:
+      3D `np.ndarray` containing `E(x, y, z)`.
+    """
+    if coordinates.shape[-1] != 3:
+      raise ValueError("Last dimension of `coordinates` must be 3")
+
+    waist_radius = beam_waist_radius(wavelength, numerical_aperature)
+
+    # Extract x, z coordinates from beam.
+    u_xz = _u_hermite_gaussian(coordinates[..., [0, 2]], L, waist_radius, wavelength)
+
+    # Extract y, z coordinates from beam.
+    u_yz = _u_hermite_gaussian(coordinates[..., [1, 2]], M, waist_radius, wavelength)
+    normalized = u_xz * u_yz #physically normalized beam which may be useful
+
+    #scale normalized beam such that E(0, 0, 0) is amplitude.
+    return normalized / (
+        _u_hermite_gaussian(np.array([0, 0]), L, waist_radius, wavelength) *
+        _u_hermite_gaussian(np.array([0, 0]), M, waist_radius, wavelength)
+    )
+
+
+def frequency_bandwidth_with_gaussian_noise(
+    length: int,
+    dz: float,
+    center_frequency: float,
+    frequency_bandwidth: float,
+    gaussian_sigma: float,
+    amplitude: float = 1.,
+):
+    """Returns psf along propagation axis due to beam obtained from inverse-
+    fourier transform of a frequency bandwidth, convolved with a normalized
+    gaussian noise, both around center_frequency.
+
+    Args:
+        length: int denoting number of pixels.
+        dz: float denoting grid size in meters.
+        center_frequency: frequency of center of bandwidth in Hz.
+        frequency_bandwidth: difference between max and min frequency in Hz.
+        gaussian_sigma: standard deviation of gaussian noise.
+        amplitude: float denoting amplitude of beam (at z = 0).
+
+    Returns:
+    `np.ndarray` of shape `[length]`.
+
+    The inverse fourier transform of f * g is simply the multiplication of the
+    inverse fourier transform of f with the inverse fourier transform of g.
+
+    The inverse fourier transform of a rectangular pulse is sinc so the inverse
+    transform of the frequency bandwidth can be shown to be
+    cos(2pi f_ct) sinc(bt) where f_c is the center_frequency and b is the
+    frequency bandwidth.
+
+    The inverse fourier transform of the gaussian noise centered about f_c is
+    cos(2pi f_ct) e^{-2pi^2 gaussian_sigma^2 t^2}.
+    """
+
+    if length % 2 != 1:
+      raise ValueError("`length` must be odd, but got {}".format(length))
+
+    center_z = length // 2 * dz
+    z = np.linspace(-center_z, center_z, length)
+    t = z / _SOUND_SPEED_WATER
+
+    inverse_freq = np.cos(2 * np.pi * center_frequency * t) * np.sinc(frequency_bandwidth * t)
+    inverse_gaussian = np.cos(2 * np.pi * center_frequency * t) * np.exp(-2 * (np.pi * gaussian_sigma * t) ** 2)
+
+    normalized = inverse_freq * inverse_gaussian
+
+    return  amplitude * normalized / normalized[length//2]
