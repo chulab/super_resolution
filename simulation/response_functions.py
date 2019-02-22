@@ -5,9 +5,10 @@ import numpy as np
 from typing import List
 
 from simulation import utils
+from simulation import defs
 
 _FWHM_STANDARD_DEVIATION_RATIO = 2.355
-_SOUND_SPEED_WATER = 1498  # In meters.
+_SOUND_SPEED_WATER = defs._SPEED_OF_SOUND_WATER  # In meters.
 _FWHM_1_OVER_E_SQUARED = 1.699
 
 def gaussian_axial(
@@ -140,7 +141,7 @@ def gaussian_lateral(
 
   half_length = length // 2
   points = np.arange(start=-half_length, stop=half_length + 1)
-  return np.exp( -points ** 2 / (waist_radius ** 2) )
+  return np.exp(-points ** 2 / waist_radius ** 2)
 
 
 def hermite_polynomial(

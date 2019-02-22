@@ -28,5 +28,4 @@ def discrete_gaussian(
     raise ValueError("`size` must be odd. Got {}".format(size))
   half_size = (size - 1) // 2
   n = np.arange(-half_size, half_size + 1)
-  print(special.iv(n, t))
   return math.exp(-t) * special.iv(n, t)
