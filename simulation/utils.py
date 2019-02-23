@@ -8,7 +8,7 @@ def discrete_gaussian(
     size: int,
     t: float,
 ):
-  """Implements discrete gaussian kernal.
+  """Implements discrete gaussian kernel.
 
   For further information see:
     https://en.wikipedia.org/wiki/Scale_space_implementation \

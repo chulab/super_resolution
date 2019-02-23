@@ -95,9 +95,11 @@ def axial_psf_filters(
   if psf_length % 2 == 0:
     raise ValueError("`psf_length` must be odd.")
   psf_axial = [
-    response_functions.gaussian_pulse(response_functions.gaussian_axial(
-      psf_length, wavelength, grid_dimension, numerical_aperture),
-      wavelength, bandwidth, grid_dimension)
+    response_functions.gaussian_pulse(wavelength, bandwidth, psf_length,
+                                      grid_dimension) *
+    response_functions.gaussian_axial(
+      psf_length, wavelength, grid_dimension, numerical_aperture
+      )
     for wavelength in wavelengths]
   return to_filter(psf_axial, mode="FROM_SAME")
 

@@ -84,29 +84,28 @@ def beam_waist_radius(
 
 
 def gaussian_pulse(
-    beam: np.ndarray,
     center_wavelength: float,
     transducer_bandwidth: float,
+    length: int,
     dz: float,
 ):
-  """Simulates a gaussian pulse by applying a windowing function to a beam.
+  """Simulates a gaussian pulse given a wavelength and bandwidth.
 
-  The center of the pulse is assumed to be at the center index of `beam`.
+  The center of the pulse is assumed to be at the center index of the output.
 
   Args:
-    beam: `np.ndarray` of shape `[length]` which models the beam.
     center_wavelength: Center wavelength in meters.
     transducer_bandwidth: Bandwidth of transducer used to generate pulse.
     dz: grid size in meters.
 
   Returns:
-    `np.ndarray` of shape `[length]`.
+    `np.ndarray` of shape `[length]` containing pulse window.
   """
   # Pulse window determines the "pulse" length and shape.
   center_frequency = _SOUND_SPEED_WATER / center_wavelength
   frequency_bandwidth = center_frequency * transducer_bandwidth
 
-  # convert badwidth FWHM to standard deviation.
+  # Convert bandwidth FWHM to standard deviation.
   frequency_sigma = frequency_bandwidth / _FWHM_STANDARD_DEVIATION_RATIO
 
   # Compute bandwidth limited gaussian pulse.
@@ -114,10 +113,9 @@ def gaussian_pulse(
 
   # Discretize pulse on grid.
   pulse_sigma_z_grid = pulse_sigma_z / dz
-  pulse_window = utils.discrete_gaussian(beam.shape[0], pulse_sigma_z_grid)
 
-  # Multiply beam with pulse window.
-  return beam * pulse_window
+  return utils.discrete_gaussian(length, pulse_sigma_z_grid)
+
 
 
 def gaussian_lateral(
