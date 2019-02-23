@@ -164,56 +164,6 @@ def hermite_polynomial(
     return np.polynomial.hermite.hermval(value, coefficients)
 
 
-def _u_hermite_gaussian(
-    coordinates: np.ndarray,
-    degree: int,
-    waist_radius: float,
-    wavelength: float
-):
-    """Computes u_J(x, z) given in
-    `https://en.wikipedia.org/wiki/Gaussian_beam#Hermite-Gaussian_modes`.
-
-    Note that we use notation such that z refers to the direction of beam
-    propagation while x refers to a transverse direction.
-
-    Args:
-      beam: Either
-            `np.ndarray` of shape `batch_dimensions + [3]` where the last index
-             contains (x, y, z) coordinates.
-      degree: int denoting degree of hermite-gaussian.
-      waist_radius: float denoting w(0) in meters.
-      wavelength: float denoting wavelength in meters.
-
-    Returns:
-      According to options for beam above,
-      1. Cross-section: `np.ndarray` of shape `[length, length]` for u_J(x, z).
-      2. Full: `np.ndarray` of shape `[length, length, length]` for u_J(x, z).
-    """
-
-    if coordinates.shape[-1] != 2:
-        raise ValueError("Coordinates must contain ")
-
-    x = coordinates[..., 0]
-    z = coordinates[..., 1]
-
-    rayleigh_length = _rayleigh_length(waist_radius, wavelength)
-    waist_z = waist_radius * np.sqrt(1 + (z / rayleigh_length) ** 2)
-
-    complex_beam = _complex_beam_parameter(z, rayleigh_length)
-
-    norm_constant = np.sqrt(
-      np.sqrt(2 / np.pi) /
-      (np.exp2(degree) * np.math.factorial(degree) * waist_radius)
-    )
-
-    norm_z = np.sqrt(1j * waist_radius / complex_beam)
-    phase_shift = np.power(- np.conj(complex_beam) / complex_beam, degree/2)
-    hermite = hermite_polynomial(np.sqrt(2) * x / waist_z, degree)
-    amplitude_decay = np.exp(-1j * np.pi / wavelength * (x**2) / complex_beam)
-
-    return norm_constant * norm_z * phase_shift * hermite * amplitude_decay
-
-
 def _rayleigh_length(
     waist_radius,
     wavelength,
@@ -293,20 +243,28 @@ def hermite_gaussian_mode(
     if coordinates.shape[-1] != 3:
       raise ValueError("Last dimension of `coordinates` must be 3")
 
+    x = coordinates[..., 0]
+    y = coordinates[..., 1]
+    z = coordinates[..., 2]
+
     waist_radius = beam_waist_radius(wavelength, numerical_aperature)
 
-    # Extract x, z coordinates from beam.
-    u_xz = _u_hermite_gaussian(coordinates[..., [0, 2]], L, waist_radius, wavelength)
+    rayleigh_length = _rayleigh_length(waist_radius, wavelength)
+    waist_z = waist_radius * np.sqrt(1 + (z / rayleigh_length) ** 2)
 
-    # Extract y, z coordinates from beam.
-    u_yz = _u_hermite_gaussian(coordinates[..., [1, 2]], M, waist_radius, wavelength)
-    normalized = u_xz * u_yz #physically normalized beam which may be useful
+    axial_amplitude = waist_radius / waist_z
 
-    #scale normalized beam such that E(0, 0, 0) is amplitude.
-    return normalized / (
-        _u_hermite_gaussian(np.array([0, 0]), L, waist_radius, wavelength) *
-        _u_hermite_gaussian(np.array([0, 0]), M, waist_radius, wavelength)
-    )
+    hermite_polynomial_L = hermite_polynomial(np.sqrt(2) * x / waist_z, L)
+    hermite_polynomial_M = hermite_polynomial(np.sqrt(2) * y / waist_z, M)
+
+    transverse_amplitude = np.exp(-1 * (x ** 2 + y ** 2) / waist_z ** 2)
+
+    gouy_phase = (L + M + 1) * np.arctan(z / rayleigh_length)
+
+    phase_component = np.exp(1j * gouy_phase)
+
+    return (axial_amplitude * hermite_polynomial_L * hermite_polynomial_M *
+            transverse_amplitude * phase_component)
 
 
 def frequency_bandwidth_with_gaussian_noise(
