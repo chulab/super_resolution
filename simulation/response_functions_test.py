@@ -17,12 +17,11 @@ class utilsTest(unittest.TestCase):
         wavelength, numerical_aperature), 3.60, 2)
 
   def testGaussianPulse(self):
-    beam = np.ones(11)
     center_wavelength = 5e-6
     bandwidth = .8
     dz = center_wavelength / 4
     pulse = response_functions.gaussian_pulse(
-      beam, center_wavelength, bandwidth, dz)
+      center_wavelength, bandwidth, 11, dz)
     true_pulse = utils.discrete_gaussian(11, 2.6503)
     np.testing.assert_allclose(pulse, true_pulse, 3)
 
