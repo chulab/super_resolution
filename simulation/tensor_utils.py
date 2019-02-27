@@ -5,6 +5,7 @@ from functools import reduce
 
 import tensorflow as tf
 import numpy as np
+from scipy import ndimage
 
 from typing import List
 
@@ -100,6 +101,96 @@ def rotate_tensor(
 
   # Transpose to return axes to original positions.
   return tf.transpose(tensor, inverse_transpose)
+
+
+def rotate_tensor_np(
+    tensor: np.ndarray,
+    angles: np.ndarray,
+    rotation_axis: int,
+) -> np.ndarray:
+  """Rotates a `np.ndarray` along a given batch dimension.
+
+  See documentation for `rotate_tensor`.
+
+  This function has slightly different results than `rotate_tensor` due to the
+  different handling of edges during interpolation.
+
+  These edge effects are negligible if the input tensor has been zero-padded
+  along all spatial dimensions.
+
+  Args:
+    tensor: See documentation for `rotate_tensor`.
+    angles: See documentation for `rotate_tensor`.
+    rotation_axis: See documentation for `rotate_tensor`.
+
+  Returns:
+    `tf.Tensor` of same shape as `tensor` with rotation applied.
+
+  Raises:
+    ValueError: If input parameters are invalid.
+  """
+  tensor_shape = tensor.shape
+  if len(tensor_shape) < 4:
+    raise ValueError(
+      "`tensor` must have rank at least 4, got {}.".format(len(tensor_shape)))
+  if rotation_axis < 0:
+    raise ValueError(
+      "`rotation_axis` must be positive got {}".format(rotation_axis))
+  if len(tensor_shape) - rotation_axis < 4:
+    raise ValueError(
+      "`rotation_axis` must be a batch dimension (last 3 axes, are reserved "
+      "for `[height, width, channel]`)."
+    )
+  if len(angles.shape) != 1:
+    raise ValueError(
+      "`angles` must be a 1D list. Got {}.".format(angles.shape))
+  if angles.shape[0] != tensor_shape[rotation_axis]:
+    raise ValueError("`angles` length must equal `rotation_axis` shape."
+                     "Got {} and {}.".format(
+      angles.shape, tensor_shape[rotation_axis]))
+
+  # Replace unknown dimension with -1.
+  tensor_shape = [-1 if dim is None else dim for dim in tensor_shape]
+
+  axes = [(axis, shape) for axis, shape in enumerate(tensor_shape)]
+
+  # Keep `rotation_axis` as batch dimension.
+  transpose = [axes.pop(rotation_axis)]
+
+  # Append last 3 dimensions [`height`, `width`, `channels`].
+  transpose += [axes.pop(axis) for axis in range(-3, 0)]
+
+  # Finally append other dimensions.
+  transpose += axes
+
+  # Transpose.
+  tensor = np.transpose(tensor, [axis for axis, _ in transpose])
+
+  # Reshape to put all of the batch dimensions into channels.
+  tensor = np.reshape(
+    tensor,
+    ([shape for _, shape in transpose[:3]] +
+     [max(reduce(mul, [shape for _, shape in transpose[3:]], 1), -1)])
+  )
+
+  # Convert angles from rad to degree.
+  angles = [angle * 180. / np.pi for angle in angles]
+
+  # Perform rotation.
+  slices = [ndimage.rotate(tensor_slice, angle, reshape=False, order=1, mode="nearest") for
+            tensor_slice, angle in zip(tensor, angles)]
+
+  # tensor = tf.contrib.image.rotate(tensor, angles, "BILINEAR")
+  tensor = np.stack(slices, 0)
+
+  # Retrieve dimensions compressed into `channels`.
+  tensor = np.reshape(tensor, [shape for _, shape in transpose])
+
+  inverse_transpose = _reverse_transpose_sequence(
+    [axis for axis, _ in transpose])
+
+  # Transpose to return axes to original positions.
+  return np.transpose(tensor, inverse_transpose)
 
 
 def combine_batch_into_channels(
