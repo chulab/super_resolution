@@ -101,6 +101,85 @@ class RotateTest(tf.test.TestCase):
       self.assertAllClose(truth, rotate_eval)
 
 
+class RotateNumpyTest(tf.test.TestCase):
+
+  @parameterized.expand([
+    ([5],),
+    ([5, 5],),
+    ([5, 5, 5],),
+    ])
+  def testBadShape(self, shape):
+    tensor = np.ones(shape)
+    angles = np.ndarray([1])
+    rotation_axis = 1
+    with self.assertRaisesRegex(ValueError, "`tensor` must have rank at"):
+      tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
+
+  def testNegativeRotationAxis(self):
+    tensor = np.ones([5] * 4)
+    angles = np.ndarray([1])
+    rotation_axis = -2
+    with self.assertRaisesRegex(
+        ValueError, "`rotation_axis` must be positive."):
+      tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
+
+  @parameterized.expand([
+    (4, 1),
+    (4, 2),
+    (4, 3),
+    (4, 4),
+    (5, 2),
+    (5, 7),
+  ])
+  def testInvalidRotationAxis(self, dimensions, rotation_axis):
+    tensor = np.ones([5] * dimensions)
+    angles = np.ndarray([1])
+    with self.assertRaisesRegex(
+        ValueError, "`rotation_axis` must be a batch dimension."):
+      tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
+
+  def testInvalidangleshape(self):
+    tensor = np.ones([5] * 4)
+    angles = np.array([[1]] * 3)
+    rotation_axis = 0
+    with self.assertRaisesRegex(
+        ValueError, "`angles` must be a 1D list."):
+      tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
+
+  def testIncompatibleDimension(self):
+    tensor = np.ones([5] * 4)
+    angles = np.ndarray([1])
+    rotation_axis = 0
+    with self.assertRaisesRegex(
+        ValueError, "`angles` length must equal `rotation_axis`"):
+      tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
+
+  def testRotationNoBatch(self):
+    tensor = np.pad(np.random.rand(*[5] * 4), [[0,0], [1,1], [1,1], [0,0]], mode="constant")
+    angles = np.random.rand(5) * np.pi
+    rotation_axis = 0
+    true_rotation = tf.contrib.image.rotate(tensor, angles, "BILINEAR")
+    rotate = tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
+    with self.test_session() as sess:
+      truth = sess.run(true_rotation)
+    self.assertAllClose(truth, rotate)
+
+  def testRotationBatch(self):
+    tensor = np.pad(np.random.rand(3, 7, 5, 5, 5),
+                    [[0,0], [0,0], [1,1],[1,1], [0,0]], mode="constant")
+    angles = np.random.rand(7) * np.pi
+    rotation_axis = 1
+    true_rotations = []
+    for batch_iter in range(3):
+      true_rotations.append(tf.contrib.image.rotate(
+        tensor[batch_iter], angles, "BILINEAR"))
+    true_rotation = tf.stack(true_rotations, 0)
+    rotate = tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
+    with self.test_session() as sess:
+      truth = sess.run(true_rotation)
+    self.assertAllClose(truth, rotate)
+
+
 class TransposeTest(tf.test.TestCase):
 
   @parameterized.expand([
@@ -109,7 +188,6 @@ class TransposeTest(tf.test.TestCase):
     ([2, 5, 3, 4, 0, 1], [4, 5, 0, 2, 3, 1],),
   ])
   def testReverseTranspose(self, sequence, reverse):
-    print(sequence)
     self.assertEqual(
       tensor_utils._reverse_transpose_sequence(sequence), reverse)
 
