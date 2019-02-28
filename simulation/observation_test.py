@@ -6,7 +6,7 @@ from scipy import signal
 import numpy as np
 
 from simulation import observation
-
+from simulation import tensor_utils
 
 class ObservationV2Test(tf.test.TestCase):
 
@@ -241,8 +241,6 @@ class ObservationTest(tf.test.TestCase):
 
     with self.test_session() as sess:
       observed_state_eval = sess.run(observed_state)
-      print(observed_state_eval[0, ..., 0])
-      print(np.abs(real_convolution[0, ..., 0]))
       self.assertAllClose(np.abs(real_convolution), observed_state_eval)
 
   @parameterized.expand([
@@ -305,6 +303,107 @@ class RotateAndObserveTest(tf.test.TestCase):
       truth_eval, observed_eval = sess.run([truth, observed])
       self.assertAllClose(truth_eval, observed_eval)
 
+
+class ObservationNpTest(tf.test.TestCase):
+
+  def startUp(self):
+    tf.reset_default_graph()
+
+  @parameterized.expand([
+    ([10, 2, 3, 1],),
+    ([10, 12, 15, 3, 1],),
+  ])
+  def testIdentityPsfSingleChannel(self, state_shape):
+    impulse = np.ones([1, 1, 1, 1])
+    state = np.random.rand(*state_shape)
+    observed_state = observation.observe_np(state, impulse)
+    self.assertAllClose(state, observed_state)
+
+  @parameterized.expand([
+    ([4, 2, 3, 1], [1, 2.]),
+    ([10, 12, 15, 3, 1], [1, 1.3, 3.4, 5.6]),
+  ])
+  def testIdentityPsfMultiChannel(self, state_shape, channel_multiplier):
+    channel_multiplier = np.array(channel_multiplier)
+    impulse = channel_multiplier[np.newaxis, np.newaxis, np.newaxis, :]
+    state = np.random.rand(*state_shape)
+    true_observation = state * channel_multiplier
+    observed_state = observation.observe_np(state, impulse)
+    self.assertAllClose(true_observation, observed_state)
+
+  def testRealPsfSingleChannel(self):
+    impulse = np.random.rand(*[4, 4, 1, 1])
+    state = np.random.rand(*[1, 10, 10, 1])
+    observed_state = observation.observe_np(state, impulse)
+    real_convolution = \
+      tf.nn.conv2d(state, impulse, strides=[1, 1, 1, 1],
+                   padding="SAME")
+    with self.test_session() as sess:
+      real = sess.run(real_convolution)
+    self.assertAllClose(real, observed_state)
+
+  def testRealPsfMultiChannel(self):
+    state = np.random.rand(*[1, 10, 10, 1])
+    impulse = np.random.rand(*[2, 2, 1, 7])
+    observed_state = observation.observe_np(state, impulse)
+
+    real_convolution = \
+      tf.nn.conv2d(state, impulse, strides=[1, 1, 1, 1],
+                   padding="SAME")
+
+    with self.test_session() as sess:
+      real_eval = sess.run(real_convolution)
+      self.assertAllClose(real_eval, observed_state)
+
+  @parameterized.expand([
+    ([10],),
+    ([10, 10],),
+  ])
+  def testBadStateShape(self, shape):
+    impulse = np.ones([10] * 4)
+    state = np.random.rand(*shape)
+    with self.assertRaisesRegex(ValueError, "State must be at least 3D"):
+      observation.observe_np(state, impulse)
+
+
+class RotateAndObserveNpTest(tf.test.TestCase):
+
+  @parameterized.expand([
+    ([5] * 1,),
+    ([5] * 2,),
+    ([5] * 4,),
+  ])
+  def testBadState(self, shape):
+    state = np.random.rand(*shape)
+    with self.assertRaisesRegex(ValueError, "`state` must be 3D"):
+      observation.rotate_and_observe_np(
+        state, tf.ones([1]), tf.ones([1] * 4))
+
+  def testNoRotationIdentity(self):
+    state = np.random.rand(*[5, 5, 5])
+    impulse = np.ones([1] * 4)
+    angles = np.zeros([7])
+    observed = observation.rotate_and_observe_np(state, angles, impulse)
+    true_state = np.tile(state[:, np.newaxis, :, :, np.newaxis], [1, 7, 1, 1, 1])
+
+    self.assertAllClose(true_state, observed)
+
+  def testWithRotationIdentity(self):
+    state = np.random.rand(*[5, 5, 5])
+    impulse = np.ones([1] * 4)
+    angles = np.random.rand(*[6])
+    observed = observation.rotate_and_observe_np(state, angles, impulse)
+    truth = []
+    for slice in range(6):
+      truth.append(
+        tensor_utils.rotate_tensor_np(
+          tensor_utils.rotate_tensor_np(state[:, np.newaxis, :, :, np.newaxis], [angles[slice]], 1),
+          [-1 * angles[slice]], 1
+        )
+      )
+    truth = np.concatenate(truth, 1)
+
+    self.assertAllClose(truth, observed)
 
 
 if __name__ == "__main__":

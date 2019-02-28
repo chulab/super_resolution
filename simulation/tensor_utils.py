@@ -105,7 +105,7 @@ def rotate_tensor(
 
 def rotate_tensor_np(
     tensor: np.ndarray,
-    angles: np.ndarray,
+    angles: List[float],
     rotation_axis: int,
 ) -> np.ndarray:
   """Rotates a `np.ndarray` along a given batch dimension.
@@ -141,13 +141,10 @@ def rotate_tensor_np(
       "`rotation_axis` must be a batch dimension (last 3 axes, are reserved "
       "for `[height, width, channel]`)."
     )
-  if len(angles.shape) != 1:
-    raise ValueError(
-      "`angles` must be a 1D list. Got {}.".format(angles.shape))
-  if angles.shape[0] != tensor_shape[rotation_axis]:
+  if len(angles) != tensor_shape[rotation_axis]:
     raise ValueError("`angles` length must equal `rotation_axis` shape."
                      "Got {} and {}.".format(
-      angles.shape, tensor_shape[rotation_axis]))
+      len(angles), tensor_shape[rotation_axis]))
 
   # Replace unknown dimension with -1.
   tensor_shape = [-1 if dim is None else dim for dim in tensor_shape]
