@@ -138,14 +138,6 @@ class RotateNumpyTest(tf.test.TestCase):
         ValueError, "`rotation_axis` must be a batch dimension."):
       tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
 
-  def testInvalidangleshape(self):
-    tensor = np.ones([5] * 4)
-    angles = np.array([[1]] * 3)
-    rotation_axis = 0
-    with self.assertRaisesRegex(
-        ValueError, "`angles` must be a 1D list."):
-      tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
-
   def testIncompatibleDimension(self):
     tensor = np.ones([5] * 4)
     angles = np.ndarray([1])
