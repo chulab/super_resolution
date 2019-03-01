@@ -3,6 +3,8 @@
 import tensorflow as tf
 import numpy as np
 
+from typing import List
+
 from simulation import complex_convolution
 from simulation import tensor_utils
 from utils import numpy_convolution
@@ -224,7 +226,7 @@ def observe_np(
 
 def rotate_and_observe_np(
     state: np.ndarray,
-    angles: np.ndarray,
+    angles: List[float],
     impulse: np.ndarray,
 ) -> np.ndarray:
   """Convenience function to perform rotation, observe, reverse rotation.
@@ -246,7 +248,7 @@ def rotate_and_observe_np(
       " Got {})".format(state.shape))
 
   state = state[:, np.newaxis, :, :, np.newaxis]
-  state = np.tile(state, [1, angles.shape[0], 1, 1, 1])
+  state = np.tile(state, [1, len(angles), 1, 1, 1])
 
   # Rotate images along `angle` dimension.
   state = tensor_utils.rotate_tensor_np(state, angles, 1)
