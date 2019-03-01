@@ -257,7 +257,8 @@ def rotate_and_observe_np(
   rf_signal = observe_np(state, impulse)
 
   # Rotate back.
-  rf_signal = tensor_utils.rotate_tensor_np(rf_signal, -1 * angles, 1)
+  rf_signal = tensor_utils.rotate_tensor_np(
+    rf_signal, [-1 * angle for angle in angles], 1)
 
   # Return RF data.
   return rf_signal
