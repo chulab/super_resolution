@@ -21,6 +21,18 @@ class defsTest(unittest.TestCase):
   def test_simple_observation(self):
     simple_observation_spec()
 
+  def testWavelengthFromFrequency(self):
+    wavelength = 2.496e-4
+    frequency = 6e6
+    self.assertAlmostEqual(
+      wavelength, defs.wavelength_from_frequency(frequency), places=3)
+
+  def testFrequencyFromWavelength(self):
+    wavelength = 7.49e-4
+    frequency = 2e6
+    self.assertAlmostEqual(
+      frequency, defs.frequency_from_wavelength(wavelength), places=3)
+
 
 if __name__ == "__main__":
   unittest.main()

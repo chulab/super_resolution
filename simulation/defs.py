@@ -6,6 +6,16 @@ import numpy as np
 _SPEED_OF_SOUND_WATER = 1498  # m/s
 
 
+def frequency_from_wavelength(wavelength):
+  """Computes `frequency` in Hz given `wavelength` in meters."""
+  return _SPEED_OF_SOUND_WATER / wavelength
+
+
+def wavelength_from_frequency(frequency):
+  """Computes `wavelength` in meters given `frequency` in Hz."""
+  return _SPEED_OF_SOUND_WATER / frequency
+
+
 class ObservationSpec(namedtuple(
   'ObservationSpec', ['angles', 'frequencies', 'grid_dimension',
                       'transducer_bandwidth', 'numerical_aperture'])):
