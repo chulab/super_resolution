@@ -6,7 +6,7 @@ from simulation import utils
 import unittest
 
 
-class utilsTest(unittest.TestCase):
+class responseFunctionTest(unittest.TestCase):
 
   #TODO(noahyt): Write unit test for `gaussian_axial`.
 
@@ -78,6 +78,15 @@ class utilsTest(unittest.TestCase):
       np.tile(np.arange(0, 4., 1.)[np.newaxis, np.newaxis, :], [11, 5, 1])
     )
 
+  def testGaussianImpulseResponse(self):
+    lengths = [1e-3, .5e-4, 1e-3]
+    coordinates = np.stack(
+      response_functions.coordinate_grid(lengths, [5e-5] * 3, center=True), -1)
+    test_gaussian_pulse = response_functions.gaussian_impulse_response(
+      coordinates, 2e6, 0, .125, .1)
+
+    np.testing.assert_allclose(
+      test_gaussian_pulse.shape, list(coordinates.shape[:-1]))
 
 
 if __name__ == "__main__":
