@@ -220,49 +220,104 @@ def hermite_gaussian_mode(
     M: int = 0,
     numerical_aperature: float = .125,
 ):
-    """Computes complex E(x, y, z) over the volume of a
-    `length * dz` x `length * dz` x `length * dz` cube centered at the origin.
+  """Computes complex E(x, y, z) over the volume of a
+  `length * dz` x `length * dz` x `length * dz` cube centered at the origin.
 
-    See `https://en.wikipedia.org/wiki/Gaussian_beam#Hermite-Gaussian_modes`
+  See `https://en.wikipedia.org/wiki/Gaussian_beam#Hermite-Gaussian_modes`
 
-    Args:
-      coordinates: Array of shape `dimensions + [3]` where entries in the last
-        contain 3D coordinates `[x, y, z]` at which to evaluate `gaussian`.
-      wavelength: Float denoting wavelength in meters.
-      dz: float denoting grid size in meters.
-      L : int denoting L order of hermite-gaussian.
-      M : int denoting M order of hermite-gaussian.
-      numerical_aperture: float denoting NA of collecting apparatus.
-      amplitude: float denoting amplitude of beam (specifically, E(0, 0, 0)).
+  Args:
+    coordinates: Array of shape `dimensions + [3]` where entries in the last
+      contain 3D coordinates `[x, y, z]` at which to evaluate `gaussian`.
+    wavelength: Float denoting wavelength in meters.
+    dz: float denoting grid size in meters.
+    L : int denoting L order of hermite-gaussian.
+    M : int denoting M order of hermite-gaussian.
+    numerical_aperture: float denoting NA of collecting apparatus.
+    amplitude: float denoting amplitude of beam (specifically, E(0, 0, 0)).
 
-    Returns:
-      3D `np.ndarray` containing `E(x, y, z)`.
-    """
-    if coordinates.shape[-1] != 3:
-      raise ValueError("Last dimension of `coordinates` must be 3")
+  Returns:
+    3D `np.ndarray` containing `E(x, y, z)`.
+  """
+  if coordinates.shape[-1] != 3:
+    raise ValueError("Last dimension of `coordinates` must be 3")
 
-    x = coordinates[..., 0]
-    y = coordinates[..., 1]
-    z = coordinates[..., 2]
+  x = coordinates[..., 0]
+  y = coordinates[..., 1]
+  z = coordinates[..., 2]
 
-    waist_radius = beam_waist_radius(wavelength, numerical_aperature)
+  waist_radius = beam_waist_radius(wavelength, numerical_aperature)
 
-    rayleigh_length = _rayleigh_length(waist_radius, wavelength)
-    waist_z = waist_radius * np.sqrt(1 + (z / rayleigh_length) ** 2)
+  rayleigh_length = _rayleigh_length(waist_radius, wavelength)
+  waist_z = waist_radius * np.sqrt(1 + (z / rayleigh_length) ** 2)
 
-    axial_amplitude = waist_radius / waist_z
+  axial_amplitude = waist_radius / waist_z
 
-    hermite_polynomial_L = hermite_polynomial(np.sqrt(2) * x / waist_z, L)
-    hermite_polynomial_M = hermite_polynomial(np.sqrt(2) * y / waist_z, M)
+  hermite_polynomial_L = hermite_polynomial(np.sqrt(2) * x / waist_z, L)
+  hermite_polynomial_M = hermite_polynomial(np.sqrt(2) * y / waist_z, M)
 
-    transverse_amplitude = np.exp(-1 * (x ** 2 + y ** 2) / waist_z ** 2)
+  transverse_amplitude = np.exp(-1 * (x ** 2 + y ** 2) / waist_z ** 2)
 
-    gouy_phase = (L + M + 1) * np.arctan(z / rayleigh_length)
+  gouy_phase = (L + M + 1) * np.arctan(z / rayleigh_length)
 
-    phase_component = np.exp(1j * gouy_phase)
+  phase_component = np.exp(1j * gouy_phase)
 
-    return (axial_amplitude * hermite_polynomial_L * hermite_polynomial_M *
-            transverse_amplitude * phase_component)
+  return (axial_amplitude * hermite_polynomial_L * hermite_polynomial_M *
+    transverse_amplitude * phase_component)
+
+
+def gaussian_impulse_response(
+    coordinates,
+    frequency,
+    mode,
+    numerical_aperture,
+    bandwidth
+):
+  """Constructs a PSF of a guassian pulse centered on coordinate grid.
+
+  This function constructs the 2D impulse response of a gaussian pulse where
+  `bandwidth` < 1.
+
+  Args:
+    coordinates: `np.ndarray` of shape `[X, Y, Z, 3]` where the `[X, Y, Z]`th
+      slice contains the `X`, `Y`, and `Z` coordinates.
+    frequency: frequency of wave in Hz.
+    mode: Gaussian L mode.
+    numerical_aperture: NA of US device.
+    bandwidth: See `gaussian_pulse`.
+
+  Returns: np.ndarray of shape `coordinates.shape[:-1]` containing
+    gaussian pulse sampled at points given by `coordinates`.
+  """
+  wavelength = defs.wavelength_from_frequency(frequency)
+  wavenumber = np.pi * 2 / wavelength
+
+  # We first generate the amplitude of a monochromatic gaussian beam.
+  mode_amplitude = hermite_gaussian_mode(
+    coordinates=coordinates,
+    wavelength=wavelength,
+    L=mode,
+    M=0,
+    numerical_aperature=numerical_aperture
+  )
+
+  # Calculate the monochromatic instantaneous phase term.
+  spatial_phase = np.exp(-1j * wavenumber * coordinates[..., 2])
+
+  # Compute grid size in z-axis.
+  dz = coordinates[0, 0, 1, 2]-coordinates[0, 0, 0, 2]
+
+  # Compute windowing amplitude which is applied to the gaussian beam.
+  pulse_window = gaussian_pulse(
+    center_wavelength=wavelength,
+    transducer_bandwidth=bandwidth,
+    length=mode_amplitude.shape[-1],
+    dz=dz,
+  )
+
+  # Real component of beam is physical impulse response. We slice along the
+  # center coodinate in the `Y` direction as we use a 1D array.
+  return np.real(mode_amplitude * spatial_phase * pulse_window)
+
 
 
 def frequency_bandwidth_with_gaussian_noise(
