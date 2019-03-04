@@ -197,8 +197,6 @@ def coordinate_grid(
     array represents the n-coordinate at that element. For more information see
     documentation for `np.meshgrid`.
   """
-
-
   if len(lengths) != len(grid_dimensions):
     raise ValueError("`lengths` and `grid_dimensions` must have same number of "
                      "elements")

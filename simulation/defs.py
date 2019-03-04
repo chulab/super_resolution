@@ -4,7 +4,7 @@ from collections import namedtuple
 import numpy as np
 
 _SPEED_OF_SOUND_WATER = 1498  # m/s
-
+_SPEED_OF_SOUND_TISSUE = 1540 # m/s
 
 def frequency_from_wavelength(wavelength):
   """Computes `frequency` in Hz given `wavelength` in meters."""
@@ -39,3 +39,13 @@ class ObservationSpec(namedtuple(
     return super(ObservationSpec, cls).__new__(
       cls, angles, frequencies, grid_dimension, transducer_bandwidth,
       numerical_aperture)
+
+
+class PsfDescription(namedtuple('PsfDescription',['frequency', 'mode'])):
+  """Contains description of PSF."""
+
+  def __new__(cls, frequency, mode):
+    assert isinstance(frequency, float)
+    assert isinstance(mode, int)
+    assert 0<=mode
+    return super(PsfDescription, cls).__new__(cls, frequency, mode)
