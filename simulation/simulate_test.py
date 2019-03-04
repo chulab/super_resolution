@@ -69,5 +69,15 @@ class SimulationTest(unittest.TestCase):
     sim_test.angles = new_angles
     np.testing.assert_equal(new_angles, sim_test.angles)
 
+  def testSimulation(self):
+    sim_test = self._make_simulator(
+      angles=[1] * 4,
+      frequencies=[2e6] * 3,
+      modes=[0] * 2,
+    )
+    sample_scatterers = np.random.rand(2, 25, 25)
+    us_images = sim_test.simulate(sample_scatterers)
+    np.testing.assert_equal([2, 4, 25, 25, 6], us_images.shape)
+
 if __name__ == "__main__":
   unittest.main()
