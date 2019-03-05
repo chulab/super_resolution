@@ -41,3 +41,39 @@ def particle_distribution(
   distribution = distribution_fn(size=size, **kwargs)
 
   return np.clip(distribution, 0, 1.)
+
+
+def poisson_noise(
+    array: np.ndarray,
+    lambda_multiplier: int = 500,
+    normalize_output: bool = True,
+):
+  """Adds poissonian noise to a distribution and optionally normalizes output.
+
+  This function is used to add noise to scatterer distributions. It functions by
+  first multiplying the distribution (which is assumed to take values between
+  0. and 1.) by the `lambda_multiplier` to generate the true expected number of
+  scatterers in a region. Then, for each pixel, a value is drawn from a poisson
+  parametrized by the given lambda. This generates an array containing the
+  integer number of scatterers present in each pixel. The output may be
+  normalized again before returning.
+
+  Args:
+    array: `np.ndarray` of shape `[batch_size] + physical_dimensions` containing
+      distribution of scatterers (normalized between 0. and 1.).
+    lambda_multiplier: Multiplier used with `array` to determine expected
+      value (number) of scatterers at each location.  Larger values generate
+      more smooth distributions.
+    normalize_output: bool. If true then output is normalized between 0 and 1.
+      Defaults to `True`. This normalization is applied accross all dimensions
+      except the batch axis.
+
+  Returns:
+    `np.ndarray` of same size as `array`.
+  """
+  array = np.random.poisson(array * lambda_multiplier)
+  if normalize_output:
+    return array / np.amax(
+      array, axis=tuple(range(array.ndim)[1:]), keepdims=True)
+  else:
+    return array
