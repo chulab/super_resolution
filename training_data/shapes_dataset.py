@@ -1,209 +1,213 @@
 """Functions to generate dataset (in shards) for certain geometric shapes"""
 
 import numpy as np
-from math import tan, pi, ceil, floor
+import math
 import random
 from skimage.draw import line_aa
 
-VALID_TYPES = ['circle', 'line']
+from simulation import response_functions
 
-def draw_circle(
-    array_size: int,
-    origin,
-    radius: int,
-    num_dim: int,
+from typing import List
+
+VALID_TYPES = ['CIRCLE', 'LINE']
+
+
+def _circle(
+  coordinates: np.ndarray,
+  origin: List[float],
+  radius: float,
 ):
-    """Returns np.ndarray with a circle of given radius at a center.
-    Set cells are `1` while empty cells are `0`.
+  """Returns `np.ndarray` with a circle of `radius` located at `origin`.
 
-    Args:
-        array_size: size of each dimension of array.
-        origin: indices of circle's center in array as a Tuple of ints with
-                length equal to num_dim.
-        radius: radius of circle in terms of length along array.
-        num_dim: number of dimensions of array.
+  Set cells are `1` while empty cells are `0`.
 
-    Returns:
-        np.ndarray with total dimensions num_dim with each dimension having
-        size `array_size`.
+  Args:
+    coordinates: Array containing coordinates in n-d space.
+    origin: Circle center location in physical n-d space.
+    radius: Radius of circle in physical units.
 
-    Raises:
-      ValueError: if len of origin tuple is not num_dim.
-    """
+  Returns:
+    np.ndarray with total dimensions num_dim with each dimension having
+    size `array_size`.
 
-    if len(origin) != num_dim:
-      raise ValueError("`origin` must be a tuple of `num_dim` ints."
-                        " Got tuple of %d ints but `num_dim` was %d "
-                        % (len(origin), num_dim))
+  Raises:
+    ValueError: If `coordinates` and `origin` are not compatible.
+  """
+  if len(origin) != coordinates.shape[-1]:
+    raise ValueError("`origin` and `coordinates` must have same number of"
+                     "dimensions but got {} and {}".format(
+      len(origin), coordinates.shape[-1]))
 
-    # equivalent to [0:array_size, 0:array_size, ...] repeated num_dim times
-    args = [slice(i,j) for i,j in [(0, array_size)] * num_dim]
+  distance_to_origin_squared = np.sum((coordinates - origin) ** 2, -1)
 
-    # all_coordinates[i] contains the i-coordinate of each array element
-    all_coordinates = np.mgrid[args]
+  return distance_to_origin_squared <= radius ** 2
 
-    # compute square distances of each array element from origin
-    distances = np.zeros([array_size] * num_dim)
-    for i in range(num_dim):
-        distances += (all_coordinates[i] - origin[i]) ** 2
 
-    circle = (distances <= radius * radius).astype(int)
-    return circle
-
-def circle_fn(
-    physical_dim: float,
-    grid_size: float,
-    min_rad: float,
-    max_rad: float,
-    max_count: int,
-    num_dim: int = 2,
+def random_circles(
+  dimensions: List[float],
+  grid_dimensions: List[float],
+  min_radius: float,
+  max_radius: float,
+  min_intensity:float,
+  max_intensity:float,
+  max_count: int,
 ):
-    """Produces a box of up to max_count circles with radii between min_rad
-    and max_rad, represented by a np.ndarray.
+  """Produces an array of balls in arbitrary dimensions.
 
-    Set cells are `1` while empty cells are `0`.
+  In the 2D mode this function produces an array with circles centered at
+  random locations within the array. These circles will have a radius between
+  `min_radius` and `max_radius`.
 
-    Args:
-      physical_dim: length of box in metres.
-      grid_size: grid size in metres.
-      min_rad: minimum circle radius in metres.
-      max_rad: maximum circle radius in metres.
-      max_count: maximum number of circles generated.
-      num_dim: number of dimensions of box (2 or 3).
+  Args:
+    dimensions: Dimensions of box in metres.
+    grid_dimensions: Grid size in metres.
+    min_rad: Minimum circle radius in metres.
+    max_rad: Maximum circle radius in metres.
+    max_count: Maximum number of circles to place in array.
 
-    Returns:
-      np.ndarray with total dimensions num_dim with each dimension having
-      size `physical_dim / grid_size`.
-    """
+  Returns:
+    `np.ndarray` with total dimensions num_dim with each dimension having
+    size `physical_dim / grid_size`.
+  """
+  coordinates = np.stack(
+    response_functions.coordinate_grid(dimensions, grid_dimensions, False),
+    -1
+  )
 
-    array_size = ceil(physical_dim / grid_size)
-    min_array_rad = floor(min_rad / grid_size)
-    max_array_rad = ceil(max_rad / grid_size)
-    count = np.random.randint(1, max_count + 1)
+  # `box` will store circles.
+  box = np.zeros(coordinates.shape[:-1])
 
-    box = np.zeros([array_size] * num_dim)
-    for _ in range(count):
+  # Array will contain at least one ball, and up to `max_count`.
+  count = np.random.randint(1, max_count + 1)
 
-        # get circle parameters
-        origin = np.random.randint(0, array_size, num_dim)
-        radius = np.random.randint(min_array_rad, max_array_rad + 1)
-        circle = draw_circle(array_size, origin, radius, num_dim)
+  for _ in range(count):
+    # Get random circle origin.
+    origin = [np.random.uniform(0, length) for length in dimensions]
 
-        #set circle
-        box = np.logical_or(box, circle)
+    # Random radius.
+    radius = np.random.uniform(min_radius, max_radius)
 
-    return box.astype(int)
+    # Intensity.
+    intensity = np.random.uniform(min_intensity, max_intensity)
+
+    # Add circle.
+    box += _circle(coordinates, origin, radius) * intensity
+
+  return np.clip(box, a_max=max_intensity)
+
 
 def line_2d_endpoints(array_size: int, origin, grad: float):
-    """Returns endpoints of the 2d line passing through an origin with a given
-    gradient in an array.
+  """Returns endpoints of the 2d line passing through an origin with a given
+  gradient in an array.
 
-    Args:
-        array_size: size of each dimension of array.
-        origin: Tuple(int, int) indices of a point on the line.
-        grad: gradient at origin.
+  Args:
+      array_size: size of each dimension of array.
+      origin: Tuple(int, int) indices of a point on the line.
+      grad: gradient at origin.
 
-    Returns:
-        Tuple(int, int, int, int) representing coordinates of left and right
-        endpoints in the form of (x_left, y_left, x_right, y_right).
-    """
+  Returns:
+      Tuple(int, int, int, int) representing coordinates of left and right
+      endpoints in the form of (x_left, y_left, x_right, y_right).
+  """
 
-    x_left = y_left = x_right = y_right = 0
+  x_left = y_left = x_right = y_right = 0
 
-    if grad == 0:
-        return 0, origin[1], array_size, origin[1]
-    elif grad > 0:
-        x_diff_left = max(-1 * origin[0] , -1 * float(origin[1]) / grad)
-        x_diff_right = min(array_size - 1 - origin[0], \
-            float(array_size - 1 - origin[1]) / grad)
-    else:
-        x_diff_left = max(-1 * origin[0], \
-            -1 * float(origin[1] - array_size + 1) / grad)
-        x_diff_right = min(array_size - 1 - origin[0], \
-            - 1 * float(origin[1]) / grad)
+  if grad == 0:
+      return 0, origin[1], array_size, origin[1]
+  elif grad > 0:
+      x_diff_left = max(-1 * origin[0] , -1 * float(origin[1]) / grad)
+      x_diff_right = min(array_size - 1 - origin[0], \
+          float(array_size - 1 - origin[1]) / grad)
+  else:
+      x_diff_left = max(-1 * origin[0], \
+          -1 * float(origin[1] - array_size + 1) / grad)
+      x_diff_right = min(array_size - 1 - origin[0], \
+          - 1 * float(origin[1]) / grad)
 
-    x_left = floor(origin[0] + x_diff_left)
-    y_left = ceil(origin[1] + x_diff_left * grad)
-    x_right = floor(origin[0] + x_diff_right)
-    y_right = ceil(origin[1] + x_diff_right * grad)
+  x_left = floor(origin[0] + x_diff_left)
+  y_left = ceil(origin[1] + x_diff_left * grad)
+  x_right = floor(origin[0] + x_diff_right)
+  y_right = ceil(origin[1] + x_diff_right * grad)
 
-    return x_left, y_left, x_right, y_right
+  return x_left, y_left, x_right, y_right
 
 def line_fn(
-    physical_dim: float,
-    grid_size: float,
-    max_count: int,
-    sharpness: int = 100,
-    num_dim: int = 2,
+  physical_dim: float,
+  grid_size: float,
+  max_count: int,
+  sharpness: int = 100,
+  num_dim: int = 2,
 ):
-    """Produces a box of up to max_count lines, represented by a np.ndarray.
+  """Produces an array of lines.
 
-    Set cells are `1` while empty cells are `0`.
-    Increasing sharpness causes line to be thinner and more salient.
+  Set cells are `1` while empty cells are `0`.
 
-    Args:
-      physical_dim: length of box in metres.
-      grid_size: grid size in metres.
-      max_count: maximum number of lines generated.
-      sharpness: anti-aliasing threshold for cell to be set.
-      num_dim: number of dimensions of box (only 2 for now).
+  Increasing sharpness causes line to be thinner and more salient.
 
-    Returns:
-      np.ndarray with total dimensions num_dim with each dimension having
-      size `physical_dim / grid_size`.
-    """
+  Args:
+    physical_dim: length of box in metres.
+    grid_size: grid size in metres.
+    max_count: maximum number of lines generated.
+    sharpness: anti-aliasing threshold for cell to be set.
+    num_dim: number of dimensions of box (only 2 for now).
 
-    array_size = ceil(physical_dim / grid_size)
-    count = np.random.randint(1, max_count + 1)
-    box = np.zeros([array_size] * num_dim)
+  Returns:
+    np.ndarray with total dimensions num_dim with each dimension having
+    size `physical_dim / grid_size`.
+  """
 
-    for _ in range(count):
-        origin = np.random.randint(0, array_size, num_dim)
-        grad = tan(random.uniform(-pi / 2, pi / 2))
+  array_size = ceil(physical_dim / grid_size)
+  count = np.random.randint(1, max_count + 1)
+  box = np.zeros([array_size] * num_dim)
 
-        x_left, y_left, x_right, y_right = line_2d_endpoints(array_size, origin, grad)
+  for _ in range(count):
+      origin = np.random.randint(0, array_size, num_dim)
+      grad = tan(random.uniform(-pi / 2, pi / 2))
 
-        rr, cc, val = line_aa(x_left, y_left, x_right, y_right)
-        box[rr, cc] += val * 255
+      x_left, y_left, x_right, y_right = line_2d_endpoints(array_size, origin, grad)
 
-    box = (box > sharpness).astype(int)
+      rr, cc, val = line_aa(x_left, y_left, x_right, y_right)
+      box[rr, cc] += val * 255
 
-    return box
+  box = (box > sharpness).astype(int)
+
+  return box
+
 
 def make_dataset(
-    type: str,
-    count: int,
-    shard_size: int = 1000,
-    file_prefix: str,
-    directory: str,
-    *args,
+  type: str,
+  count: int,
+  shard_size: int = 1000,
+  file_prefix: str,
+  directory: str,
+  *args,
 ):
-    """Writes data of a given type in a directory as .npy shards.
+  """Writes data of a given type in a directory as .npy shards.
 
-    Each shard file contains a np.ndarray of np.ndarray. Each np.ndarray element
-    of the parent np.ndarray is a dataset of randomly generated shapes of `type`
-    where set cells are '1' and empty cells are '0'.
+  Each shard file contains a np.ndarray of np.ndarray. Each np.ndarray element
+  of the parent np.ndarray is a dataset of randomly generated shapes of `type`
+  where set cells are '1' and empty cells are '0'.
 
-    Args:
-      type: shape to generate in data.
-      count: total number of datasets.
-      shard_size: number of datasets in a shard.
-      file_prefix: prefix to be appended before shard index.
-      directory: location to save.
-      args: parameters to pass into the corresponding type_fn (e.g. circle_fn
-            if type == 'circle' and line_fn if type == 'line').
-    """
+  Args:
+    type: shape to generate in data.
+    count: total number of datasets.
+    shard_size: number of datasets in a shard.
+    file_prefix: prefix to be appended before shard index.
+    directory: location to save.
+    args: parameters to pass into the corresponding type_fn (e.g. circle_fn
+          if type == 'circle' and line_fn if type == 'line').
+  """
 
-    shape_fn = None
-    if (type == 'circle'):
-        shape_fn = circle_fn
-    elif (type == 'line'):
-        shape_fn = line_fn
-    else:
-        raise ValueError("type must be in %s" % str(VALID_TYPES))
+  shape_fn = None
+  if (type == 'circle'):
+      shape_fn = circle_fn
+  elif (type == 'line'):
+      shape_fn = line_fn
+  else:
+      raise ValueError("type must be in %s" % str(VALID_TYPES))
 
-    num_files = ceil(float(count) / shard_size)
-    for i in range(num_files):
-        output = [shape_fn(*args) for _ in range(shard_size)]
-        file_path = "%s/%s_%d_of_%d.npy" % (directory, file_prefix, i+1, num_files)
-        np.save(file_path, output)
+  num_files = ceil(float(count) / shard_size)
+  for i in range(num_files):
+      output = [shape_fn(*args) for _ in range(shard_size)]
+      file_path = "%s/%s_%d_of_%d.npy" % (directory, file_prefix, i+1, num_files)
+      np.save(file_path, output)
