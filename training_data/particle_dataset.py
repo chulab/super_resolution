@@ -77,3 +77,15 @@ def poisson_noise(
       array, axis=tuple(range(array.ndim)[1:]), keepdims=True)
   else:
     return array
+
+
+def poisson_generator(
+    array_generator,
+    lambda_multiplier,
+    normalize_output,
+):
+  """Convenience function to apply poisson noise to generator."""
+  while True:
+    yield(poisson_noise(
+      next(array_generator)[np.newaxis], lambda_multiplier, normalize_output)
+    )[0]

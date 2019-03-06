@@ -1,7 +1,6 @@
 """Functions to generate dataset (in shards) for certain geometric shapes"""
 
-import math
-import os
+import argparse
 
 import numpy as np
 
@@ -53,6 +52,7 @@ def random_circles(
   min_intensity:float,
   max_intensity:float,
   max_count: int,
+  background_noise: float=0.,
 ):
   """Produces an array of balls in arbitrary dimensions.
 
@@ -66,6 +66,7 @@ def random_circles(
     min_rad: Minimum circle radius in metres.
     max_rad: Maximum circle radius in metres.
     max_count: Maximum number of circles to place in array.
+    background_noise: Fraction (between 0 and 1.) representing background noise.
 
   Returns:
     `np.ndarray` with total dimensions num_dim with each dimension having
@@ -77,7 +78,7 @@ def random_circles(
   )
 
   # `box` will store circles.
-  box = np.zeros(coordinates.shape[:-1])
+  box = np.ones(coordinates.shape[:-1]) * background_noise
 
   # Array will contain at least one ball, and up to `max_count`.
   count = np.random.randint(1, max_count + 1)
@@ -117,3 +118,45 @@ def shape_generator(
   while True:
     yield shape_fn(*args, **kwargs)
 
+
+def parse_args():
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument('--min_radius', dest='min_radius',
+                      help='minimum radius.',
+                      type=float, required=False)
+
+  parser.add_argument('--max_radius', dest='max_radius',
+                      help='Maximum radius.',
+                      type=float, required=False)
+
+  parser.add_argument('--max_count', dest='max_count',
+                      help='maximum number of shapes', type=int, required=True)
+
+  parser.add_argument('--background_noise', dest='background_noise',
+                      help='Background noise fraction', type=float,
+                      required=False)
+
+  args, unknown = parser.parse_known_args()
+
+  return args
+
+
+def generate_shapes(
+    type,
+    physical_size,
+    grid_dimensions,
+):
+  args = parse_args()
+
+  return shape_generator(
+    type=type,
+    dimensions=physical_size,
+    grid_dimensions=grid_dimensions,
+    min_radius=args.min_radius,
+    max_radius=args.max_radius,
+    min_intensity=0.,
+    max_intensity=1.,
+    max_count=args.max_count,
+    background_noise=args.background_noise,
+  )
