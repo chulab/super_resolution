@@ -77,9 +77,9 @@ sbatch <<EOT
 #SBATCH --mail-user=toyonaga@stanford.edu
 
 # A file for STDOUT from job.
-#SBATCH --output="${directory}/output/output.txt"
+#SBATCH --output="${directory}/output.txt"
 # A file for STDERR from job.
-#SBATCH --error="${directory}/output/error.txt"
+#SBATCH --error="${directory}/error.txt"
 
 ##  RUNTIME RESOURCES.
 # Note that if gpu's are requested, the call to gres is included in
