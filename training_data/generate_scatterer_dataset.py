@@ -14,6 +14,7 @@ Example usage:
 # --min_radius 1
 # --max_radius 4
 # --max_count 4
+# --background_noise .05
 """
 
 import argparse
