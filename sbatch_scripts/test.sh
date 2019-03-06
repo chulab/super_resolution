@@ -1,5 +1,5 @@
 #!/bin/bash
-sbatch_setup_commands="# Additional setup commands. \n"
+sbatch_setup_commands="# Additional setup commands."
 
 ## BORG JOB SPECIFICATIONS.
 job_name=test
@@ -20,15 +20,17 @@ key="$1"
 case $key in
     -h|-\?|--help)
         Help.
+    shift
     ;;
     -n|--job_name)
-    if [ ! -z "$2" ]; then
+        if [ ! -z "$2" ]; then
             job_name=$2
             shift
-    else
-    echo 'ERROR: "--job_name" requires a non-empty option argument.'
-    exit 1
-    fi
+        else
+        echo 'ERROR: "--job_name" requires a non-empty option argument.'
+        exit 1
+        fi
+    shift
     ;;
     -d|--directory)
         if [ ! -z "$2" ]; then
@@ -36,29 +38,26 @@ case $key in
             shift
         else
             echo 'ERROR: "--directory" requires a non-empty option argument.'
-    exit 1
+            exit 1
         fi
-        ;;
+    shift
+    ;;
     -g|--gpu_count)
-    if [ ! -z "$2" ]; then
-            gpu_count=$2
-            shift
+        if [ ! -z "$2" ]; then
+                gpu_count=$2
+                shift
         else
             gpu_count=1
-    echo '"gpu_count" set to 1 as no value was given.'
+        echo '"gpu_count" set to 1 as no value was given.'
         fi
-        ;;
--?*)
-    die "WARNING: Unkown option: $1"
+    shift
     ;;
-*)
-    break
 esac
 done
 
 if [ $gpu_count -gt 0 ]; then
-  partition='gpu'
-  sbatch_setup_commands="${sbatch_setup_commands}#SBATCH --gres gpu:${gpu_count} \n"
+    partition='gpu'
+    sbatch_setup_commands+=$'\n'"#SBATCH --gres gpu:${gpu_count}"
 fi
 
 ## SET UP JOB DIRECTORIES.
@@ -66,8 +65,6 @@ if [ ! -d directory ]; then
   # If directory does not exist, then creates it.
   mkdir -p $directory
 fi
-
-echo $sbatch_setup_commands
 
 sbatch <<EOT
 #!/bin/bash
