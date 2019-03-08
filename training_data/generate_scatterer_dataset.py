@@ -1,20 +1,7 @@
 """Main file for scatterer distribution construction.
 
 Example usage:
-# generate_scatterer_dataset \
-# -o './test_dir'
-# -n 'test_name'
-# -t 'CIRCLE'
-# -s 10. 10.
-# -gd 1. 1.
-# -eps 100
-# -c 1000
-# -l 1000
-#
-# --min_radius 1
-# --max_radius 4
-# --max_count 4
-# --background_noise .05
+python training_data/generate_scatterer_dataset.py -o '/Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data' -n 'test_circle' -t 'CIRCLE' -s 10 10 -gd .1 .1  -eps 3 -c 9 -l 500 --min_radius 1 --max_radius 4 --max_count 15 --background_noise .05
 """
 
 import argparse

@@ -70,6 +70,8 @@ def _construct_example(
       observation_params.angles).SerializeToString()),
     'observation_params/frequencies': _bytes_feature(tf.make_tensor_proto(
       observation_params.frequencies).SerializeToString()),
+    'observation_params/modes': _bytes_feature(tf.make_tensor_proto(
+      observation_params.modes).SerializeToString()),
     'observation_params/grid_dimension': _float_feature(
       observation_params.grid_dimension),
     'observation_params/transducer_bandwidth': _float_feature(
@@ -98,6 +100,7 @@ def _parse_example(example_serialized: tf.Tensor):
     'observation': tf.FixedLenFeature([], tf.string),
     'observation_params/angles': tf.FixedLenFeature([], tf.string),
     'observation_params/frequencies': tf.FixedLenFeature([], tf.string),
+    'observation_params/modes': tf.FixedLenFeature([], tf.string),
     'observation_params/grid_dimension': tf.FixedLenFeature([], tf.float32),
     'observation_params/transducer_bandwidth': tf.FixedLenFeature([],
                                                                   tf.float32),
@@ -114,6 +117,7 @@ def _parse_example(example_serialized: tf.Tensor):
   observation_params = {
     "angles": tf.io.parse_tensor(features['observation_params/angles'], tf.float32),
     "frequencies": tf.io.parse_tensor(features['observation_params/frequencies'], tf.float32),
+    "modes": tf.io.parse_tensor(features['observation_params/modes'], tf.int32),
     "grid_dimension": features['observation_params/grid_dimension'],
     "transducer_bandwidth": features[
       'observation_params/transducer_bandwidth'],

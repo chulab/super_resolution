@@ -23,7 +23,7 @@ class GenerateTest(tf.test.TestCase):
     true_observation = np.random.rand(*observation_shape).astype(np.float32)
 
     true_observation_spec = defs.ObservationSpec(
-      [0, np.pi / 2], [1.5], .23, .2, .8)
+      [0, np.pi / 2], [1.5], [0, 1], .23, .2, .8)
     example = record_utils._construct_example(
       true_scatter, true_observation, true_observation_spec)
 
@@ -41,7 +41,7 @@ class GenerateTest(tf.test.TestCase):
   def testBadDtypeDistribution(self):
     true_scatter = np.random.rand(400, 30, 2).astype(np.double)
     true_observation = np.random.rand(400, 30, 2).astype(np.float32)
-    true_observation_spec = defs.ObservationSpec([0, np.pi / 2], [1.5], .23, .2, .8)
+    true_observation_spec = defs.ObservationSpec([0, np.pi / 2], [1.5], [1,2], .23, .2, .8)
     with self.assertRaisesRegex(ValueError, "`distribution` must have dtype"):
       record_utils._construct_example(
        true_scatter, true_observation, true_observation_spec)
@@ -49,7 +49,7 @@ class GenerateTest(tf.test.TestCase):
   def testBadDtypeObservation(self):
     true_scatter = np.random.rand(400, 30, 2).astype(np.float32)
     true_observation = np.random.rand(400, 30, 2).astype(np.double)
-    true_observation_spec = defs.ObservationSpec([0, np.pi / 2], [1.5], .23, .2, .8)
+    true_observation_spec = defs.ObservationSpec([0, np.pi / 2], [1.5], [1, 2], .23, .2, .8)
     with self.assertRaisesRegex(ValueError, "`observation` must have dtype"):
       record_utils._construct_example(
        true_scatter, true_observation, true_observation_spec)

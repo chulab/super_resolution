@@ -11,7 +11,7 @@ from simulation import defs
 from simulation import create_observation_spec
 
 
-class CresteObservationSpecTest(unittest.TestCase):
+class CreateObservationSpecTest(unittest.TestCase):
 
   def setUp(self):
     # Create a test directory.
