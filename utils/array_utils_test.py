@@ -3,6 +3,8 @@
 import unittest
 from parameterized import parameterized
 
+import numpy as np
+
 from utils import array_utils
 
 class arrayUtilsTest(unittest.TestCase):
@@ -21,3 +23,14 @@ class arrayUtilsTest(unittest.TestCase):
     self.assertTrue(
       compatible == array_utils.is_broadcast_compatible(shape_a, shape_b)
     )
+
+  @parameterized.expand([
+    ((41, 23, 4), 0),
+    ((12, 14), 1),
+    ((23, 41, 33), 1),
+  ])
+  def testArraySplit(self, shape, axis):
+    array = np.random.rand(*shape)
+    splits = array_utils.reduce_split(array, axis)
+    for i in range(array.shape[axis]):
+      np.testing.assert_equal(splits[i], array.take(i, axis))
