@@ -29,6 +29,16 @@ class defsTest(unittest.TestCase):
       modes, os.modes
     )]
 
+  def testBadModeNotInteger(self):
+    modes = [3, 1.3]
+    with self.assertRaisesRegex(ValueError, "Modes must be integers"):
+      simple_observation_spec(modes=modes)
+
+  def testBadModeLessthanZero(self):
+    modes = [0, 1, -2]
+    with self.assertRaisesRegex(ValueError, "Modes must be integers"):
+      simple_observation_spec(modes=modes)
+
   def testWavelengthFromFrequency(self):
     wavelength = 2.496e-4
     frequency = 6e6

@@ -33,6 +33,8 @@ class ObservationSpec(namedtuple(
     assert isinstance(grid_dimension, float)
 
     assert isinstance(modes, list)
+    if not all(0 <= mode and isinstance(mode, int) for mode in modes):
+      raise ValueError("Modes must be integers greater than or equal to 0.")
 
     assert isinstance(transducer_bandwidth, float)
 
