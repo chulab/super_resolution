@@ -1,8 +1,18 @@
-"""Creates `ObservationSpec`."""
+"""Creates `ObservationSpec`.
+
+Example usage:
+
+python simulation/create_observation_spec.py -sd /Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data -n test_observation_spec -a 0,1.04,2.09 -m 0,1 -f 2e6,5e6,7e6 -gd 1e-4 -tb .1 -na .125
+"""
 
 import argparse
 import json
 import os
+import sys
+
+# Add `super_resolution` package.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 from simulation import defs
 
@@ -15,6 +25,14 @@ def save_observation_spec(
 
   with open(file_name, "w") as file:
     file.write(json.dumps(observation_spec._asdict()))
+
+
+def load_observation_spec(
+    file_path: str
+):
+  """Loads `ObservationSpec` from file path."""
+  with open(file_path, 'r') as f:
+    return defs.ObservationSpec(**json.load(f))
 
 
 def parse_args():
@@ -33,6 +51,11 @@ def parse_args():
   parser.add_argument('-a', '--angles', dest='angles',
                       help='Comma delimited list of angles',
                       type=lambda s: [float(angle) for angle in s.split(',')],
+                      required=True)
+
+  parser.add_argument('-m', '--modes', dest='modes',
+                      help='Comma delimited list of modes',
+                      type=lambda s: [int(mode) for mode in s.split(',')],
                       required=True)
 
   parser.add_argument('-f', '--frequencies', dest='frequencies',
@@ -63,8 +86,13 @@ def parse_args():
 def main():
   args = parse_args()
   observation_spec = defs.ObservationSpec(
-    args.angles, args.frequencies, args.grid_dimension,
-    args.transducer_bandwidth, args.numerical_aperture)
+    angles=args.angles,
+    frequencies=args.frequencies,
+    modes=args.modes,
+    grid_dimension=args.grid_dimension,
+    transducer_bandwidth=args.transducer_bandwidth,
+    numerical_aperture=args.numerical_aperture
+  )
   save_observation_spec(observation_spec, args.save_dir, args.name)
 
 

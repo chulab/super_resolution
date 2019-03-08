@@ -17,12 +17,12 @@ def wavelength_from_frequency(frequency):
 
 
 class ObservationSpec(namedtuple(
-  'ObservationSpec', ['angles', 'frequencies', 'grid_dimension',
+  'ObservationSpec', ['angles', 'frequencies', 'modes', 'grid_dimension',
                       'transducer_bandwidth', 'numerical_aperture'])):
   """ObservationSpec contains parameters associated with US observation."""
 
-  def __new__(cls, angles, frequencies, grid_dimension, transducer_bandwidth,
-              numerical_aperture):
+  def __new__(cls, angles, frequencies, modes, grid_dimension,
+              transducer_bandwidth, numerical_aperture):
     assert isinstance(angles, list)
     if not all(0. <= angle < np.pi for angle in angles):
       raise ValueError("All angle in `angles` must be scalars between 0 and "
@@ -32,12 +32,14 @@ class ObservationSpec(namedtuple(
 
     assert isinstance(grid_dimension, float)
 
+    assert isinstance(modes, list)
+
     assert isinstance(transducer_bandwidth, float)
 
     assert isinstance(numerical_aperture, float)
 
     return super(ObservationSpec, cls).__new__(
-      cls, angles, frequencies, grid_dimension, transducer_bandwidth,
+      cls, angles, frequencies, modes, grid_dimension, transducer_bandwidth,
       numerical_aperture)
 
 
