@@ -112,7 +112,7 @@ class USSimulator(object):
 
       # Swap `x` and `z` axes.
       psf_temp = np.transpose(psf_temp, [1, 0])
-      psfs.append(psf_temp)
+      psfs.append(psf_temp.astype(np.float32))
     return psfs
 
   @property
@@ -152,7 +152,14 @@ class USSimulator(object):
       self,
       scatter_distribution,
   ):
-    """Simulates US image of `scatter_distribution`."""
+    """Simulates US image of `scatter_distribution`.
+
+    args:
+      scatter_distribution: distribution of shape `[batch, height, width]`.
+
+    returns:
+      Batch of simulated Ultrasound image.
+    """
     return self._simulate(scatter_distribution)
 
   def _simulate(self, scatter_distribution):
