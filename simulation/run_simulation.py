@@ -24,7 +24,6 @@ from simulation import simulate
 from training_data import record_writer
 
 from utils import array_utils
-from utils import list_utils
 
 
 def _load_data(
