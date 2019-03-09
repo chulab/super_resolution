@@ -1,6 +1,8 @@
 """Common defintions."""
 
 from collections import namedtuple
+from typing import Tuple
+
 import numpy as np
 
 _SPEED_OF_SOUND_WATER = 1498  # m/s
@@ -45,11 +47,32 @@ class ObservationSpec(namedtuple(
       numerical_aperture)
 
 
-class PsfDescription(namedtuple('PsfDescription',['frequency', 'mode'])):
+class PsfDescription(namedtuple('PsfDescription',
+             ['frequency', 'mode', 'sigma_frequency', 'numerical_aperture'])):
   """Contains description of PSF."""
 
-  def __new__(cls, frequency, mode):
+  def __new__(cls, frequency: float, mode: int, sigma_frequency: float,
+              numerical_aperture: float):
     assert isinstance(frequency, float)
+    assert 0 <= frequency
     assert isinstance(mode, int)
     assert 0<=mode
-    return super(PsfDescription, cls).__new__(cls, frequency, mode)
+    assert isinstance(sigma_frequency, float)
+    assert 0 <= sigma_frequency
+    assert isinstance(numerical_aperture, float)
+    assert 0 <= numerical_aperture
+
+    return super(PsfDescription, cls).__new__(
+      cls, frequency, mode, sigma_frequency, numerical_aperture)
+
+
+class PSF(namedtuple('PSF', ['psf_description', 'physical_size', 'array'])):
+  """Contains PSF and description"""
+
+  def __new__(cls, psf_description:PsfDescription, physical_size: Tuple[float],
+              array: np.ndarray):
+    assert isinstance(psf_description, PsfDescription)
+    assert len(physical_size) == 2
+    assert all(s > 0 for s in physical_size)
+    assert array.ndim == 2
+    return super(PSF, cls).__new__(cls, psf_description, physical_size, array)

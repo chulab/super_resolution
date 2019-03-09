@@ -2,7 +2,10 @@
 
 import unittest
 
+import numpy as np
+
 from simulation import defs
+
 
 def simple_observation_spec(
     angles=[0, 1., 2.],
@@ -17,7 +20,7 @@ def simple_observation_spec(
     numerical_aperture)
 
 
-class defsTest(unittest.TestCase):
+class testObservationSpec(unittest.TestCase):
 
   def test_simple_observation(self):
     simple_observation_spec()
@@ -39,6 +42,9 @@ class defsTest(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "Modes must be integers"):
       simple_observation_spec(modes=modes)
 
+
+class testWavelengthFrequency(unittest.TestCase):
+
   def testWavelengthFromFrequency(self):
     wavelength = 2.496e-4
     frequency = 6e6
@@ -50,6 +56,108 @@ class defsTest(unittest.TestCase):
     frequency = 2e6
     self.assertAlmostEqual(
       frequency, defs.frequency_from_wavelength(wavelength), places=3)
+
+
+class testPSFDescription(unittest.TestCase):
+
+  def psf_description(self, frequency, mode, sigma_frequency,
+                      numerical_aperture):
+    return defs.PsfDescription(frequency, mode, sigma_frequency,
+                               numerical_aperture)
+
+  def testPsfDescription(self):
+    frequency = 1.7e6
+    mode=2
+    sigma_frequency=.1e6
+    numerical_aperture=.1
+    psf_description = self.psf_description(
+      frequency, mode, sigma_frequency, numerical_aperture)
+    self.assertEqual(psf_description.frequency, frequency)
+    self.assertEqual(psf_description.mode, mode)
+    self.assertEqual(psf_description.sigma_frequency, sigma_frequency)
+    self.assertEqual(psf_description.numerical_aperture, numerical_aperture)
+
+  def testBadFrequency(self):
+    frequency = -.5e3
+    mode=1
+    sigma_frequency=.1e6
+    numerical_aperture=.1
+    with self.assertRaises(AssertionError):
+      self.psf_description(
+        frequency, mode, sigma_frequency, numerical_aperture)
+
+  def testBadMode(self):
+    frequency = .5e3
+    mode = .2
+    sigma_frequency=.1e6
+    numerical_aperture=.1
+    with self.assertRaises(AssertionError):
+      self.psf_description(
+        frequency, mode, sigma_frequency, numerical_aperture)
+
+  def testbadSigmaFrequency(self):
+    frequency = .5e3
+    mode = 2
+    sigma_frequency=-.1e6
+    numerical_aperture=.1
+    with self.assertRaises(AssertionError):
+      self.psf_description(
+        frequency, mode, sigma_frequency, numerical_aperture)
+
+  def testbadNA(self):
+    frequency = .5e3
+    mode = 2
+    sigma_frequency=.1e6
+    numerical_aperture=-.1
+    with self.assertRaises(AssertionError):
+      self.psf_description(
+        frequency, mode, sigma_frequency, numerical_aperture)
+
+
+class testPSF(unittest.TestCase):
+
+  def _PSF(self, psf_description, physical_size, array):
+    return defs.PSF(psf_description, physical_size, array)
+
+  def testPSF(self):
+    psf_description = defs.PsfDescription(1e6, 2, .1e6, .1)
+    physical_size = (1e-3, 2e-3)
+    array = np.random.rand(14, 25)
+    psf = self._PSF(psf_description, physical_size, array)
+
+    np.testing.assert_equal(
+      psf_description._asdict(), psf.psf_description._asdict())
+
+    self.assertEqual(physical_size, psf.physical_size)
+    np.testing.assert_equal(array, psf.array)
+
+  def testPSFBadpsfDescription(self):
+    psf_description = [1e6, 2, .1e6, .1]
+    physical_size = (1e-3, 2e-3)
+    array = np.random.rand(14, 25)
+    with self.assertRaises(AssertionError):
+      self._PSF(psf_description, physical_size, array)
+
+  def testPSFBadArrayPhysicalSize(self):
+    psf_description = defs.PsfDescription(1e6, 2, .1e6, .1)
+    physical_size = (-1e-3, 2e-3)
+    array = np.random.rand(14, 25)
+    with self.assertRaises(AssertionError):
+      self._PSF(psf_description, physical_size, array)
+
+  def testPSFBadArrayPhsicalSizeDim(self):
+    psf_description = defs.PsfDescription(1e6, 2, .1e6, .1)
+    physical_size = (1e-3, 2e-3)
+    array = np.random.rand(14, 25, 12)
+    with self.assertRaises(AssertionError):
+      self._PSF(psf_description, physical_size, array)
+
+  def testPSFBadArray(self):
+    psf_description = defs.PsfDescription(1e6, 2, .1e6, .1)
+    physical_size = (1e-3, 2e-3)
+    array = np.random.rand(14, 25, 12) # Too many dimensions
+    with self.assertRaises(AssertionError):
+      self._PSF(psf_description, physical_size, array)
 
 
 if __name__ == "__main__":
