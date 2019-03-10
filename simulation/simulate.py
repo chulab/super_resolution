@@ -70,15 +70,17 @@ class USSimulator(object):
     self._psf_coordinates = self._coordinates(self.psf_physical_size,
                                               psf_grid_dimensions)
 
-    self._psf_description = self._psf_description(self._frequencies,
-                                                  self._modes)
+    self._psf_description = self._generate_psf_description(
+      frequencies=self._frequencies,
+      modes=self._modes,
+      sigma_frequencies=[transducer_bandwidth] * len(self._frequencies),
+      numerical_apertures=[numerical_aperture] * len(self._frequencies),
+    )
 
     # Generate the impulse used for simulation.
     self._psf = self._build_psf(
       coordinates=self._psf_coordinates,
       psf_descriptions=self._psf_description,
-      transducer_bandwidth=transducer_bandwidth,
-      numerical_aperture=numerical_aperture,
     )
 
     # Convert list of psf's into filter with shape
@@ -91,24 +93,43 @@ class USSimulator(object):
       lengths, grid_dimensions, center=True)
     return np.stack([xx, yy, zz], -1)
 
-  def _psf_description(self, frequencies, modes):
-    """Returns all cartesian products of frequencies and modes."""
-    return [defs.PsfDescription(frequency, mode) for frequency, mode in
-            itertools.product(frequencies, modes)]
+  def _generate_psf_description(self, frequencies, modes, sigma_frequencies,
+                       numerical_apertures):
+    """Returns all cartesian products of frequencies and modes.
+
+    Args:
+      frequencies: List of frequencies.
+      modes: List of gaussian modes.
+      sigma_frequencies: List of same length as `frequencies` containing the
+        standard deviation of the gaussian at `frequency`.
+      numerical_apertures: List of same length as `frequencies` describing NA.
+
+    Returns:
+      List of `PsfDescription`
+    """
+    return [defs.PsfDescription(frequency=freq, mode=mode,
+                                sigma_frequency=sigma_freq,
+                                numerical_aperture=na)
+            for (freq, sigma_freq, na), mode in
+            itertools.product(
+              zip(frequencies, sigma_frequencies, numerical_apertures), modes)]
 
   def _build_psf(
       self,
       coordinates,
       psf_descriptions,
-      transducer_bandwidth,
-      numerical_aperture,
   ):
+    """Returns list of psfs based on `psf_descriptions`."""
     psfs = []
     for description in psf_descriptions:
       # Generate psf from each description.
-      psf_temp = response_functions.gaussian_impulse_response(
-            coordinates, description.frequency, description.mode,
-            numerical_aperture, transducer_bandwidth)[:, 0, :]
+      psf_temp = response_functions.gaussian_impulse_response_v2(
+        coordinates=coordinates,
+        frequency=description.frequency,
+        mode=description.mode,
+        numerical_aperture=description.numerical_aperture,
+        frequency_sigma=description.sigma_frequency,
+      )[:, 0, :]
 
       # Swap `x` and `z` axes.
       psf_temp = np.transpose(psf_temp, [1, 0])
