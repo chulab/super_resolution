@@ -16,7 +16,7 @@ class SimulationTest(unittest.TestCase):
       frequencies=[2e6, 4e6, 6e6],
       modes=[0,1],
       numerical_aperture=.125,
-      transducer_bandwidth=.1,
+      frequency_sigmas=[2e5]*3,
       psf_axial_length=1e-3,
       psf_transverse_length=3e-3,
       grid_unit=2.5e-5,
@@ -26,7 +26,7 @@ class SimulationTest(unittest.TestCase):
       frequencies=frequencies,
       modes=modes,
       numerical_aperture=numerical_aperture,
-      transducer_bandwidth=transducer_bandwidth,
+      frequency_sigmas=frequency_sigmas,
       psf_axial_length=psf_axial_length,
       psf_transverse_length=psf_transverse_length,
       grid_unit=grid_unit,
@@ -74,10 +74,10 @@ class SimulationTest(unittest.TestCase):
     sim_test = self._make_simulator()
     frequencies=[1e2, 2e2]
     modes=[1, 3, 5]
-    sigma_frequencies=[.7, .3,]
+    frequency_sigmas=[.7, .3,]
     numerical_apertures=[7., 8.,]
     descriptions = sim_test._generate_psf_description(
-      frequencies, modes, sigma_frequencies, numerical_apertures)
+      frequencies, modes, frequency_sigmas, numerical_apertures)
 
     real_descriptions = [
       defs.PsfDescription(1e2, 1, .7, 7.),

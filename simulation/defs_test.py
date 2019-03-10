@@ -60,58 +60,58 @@ class testWavelengthFrequency(unittest.TestCase):
 
 class testPSFDescription(unittest.TestCase):
 
-  def psf_description(self, frequency, mode, sigma_frequency,
+  def psf_description(self, frequency, mode, frequency_sigma,
                       numerical_aperture):
-    return defs.PsfDescription(frequency, mode, sigma_frequency,
+    return defs.PsfDescription(frequency, mode, frequency_sigma,
                                numerical_aperture)
 
   def testPsfDescription(self):
     frequency = 1.7e6
     mode=2
-    sigma_frequency=.1e6
+    frequency_sigma=.1e6
     numerical_aperture=.1
     psf_description = self.psf_description(
-      frequency, mode, sigma_frequency, numerical_aperture)
+      frequency, mode, frequency_sigma, numerical_aperture)
     self.assertEqual(psf_description.frequency, frequency)
     self.assertEqual(psf_description.mode, mode)
-    self.assertEqual(psf_description.sigma_frequency, sigma_frequency)
+    self.assertEqual(psf_description.frequency_sigma, frequency_sigma)
     self.assertEqual(psf_description.numerical_aperture, numerical_aperture)
 
   def testBadFrequency(self):
     frequency = -.5e3
     mode=1
-    sigma_frequency=.1e6
+    frequency_sigma=.1e6
     numerical_aperture=.1
     with self.assertRaises(AssertionError):
       self.psf_description(
-        frequency, mode, sigma_frequency, numerical_aperture)
+        frequency, mode, frequency_sigma, numerical_aperture)
 
   def testBadMode(self):
     frequency = .5e3
     mode = .2
-    sigma_frequency=.1e6
+    frequency_sigma=.1e6
     numerical_aperture=.1
     with self.assertRaises(AssertionError):
       self.psf_description(
-        frequency, mode, sigma_frequency, numerical_aperture)
+        frequency, mode, frequency_sigma, numerical_aperture)
 
   def testbadSigmaFrequency(self):
     frequency = .5e3
     mode = 2
-    sigma_frequency=-.1e6
+    frequency_sigma=-.1e6
     numerical_aperture=.1
     with self.assertRaises(AssertionError):
       self.psf_description(
-        frequency, mode, sigma_frequency, numerical_aperture)
+        frequency, mode, frequency_sigma, numerical_aperture)
 
   def testbadNA(self):
     frequency = .5e3
     mode = 2
-    sigma_frequency=.1e6
+    frequency_sigma=.1e6
     numerical_aperture=-.1
     with self.assertRaises(AssertionError):
       self.psf_description(
-        frequency, mode, sigma_frequency, numerical_aperture)
+        frequency, mode, frequency_sigma, numerical_aperture)
 
 
 class testPSF(unittest.TestCase):

@@ -49,7 +49,7 @@ class USSimulator(object):
       frequencies: List[float],
       modes: List[int],
       numerical_aperture: float,
-      transducer_bandwidth: float,
+      frequency_sigmas: List[float],
       psf_axial_length: float,
       psf_transverse_length,
       grid_unit,
@@ -73,7 +73,7 @@ class USSimulator(object):
     self._psf_description = self._generate_psf_description(
       frequencies=self._frequencies,
       modes=self._modes,
-      sigma_frequencies=[transducer_bandwidth] * len(self._frequencies),
+      frequency_sigma=frequency_sigmas,
       numerical_apertures=[numerical_aperture] * len(self._frequencies),
     )
 
@@ -93,14 +93,14 @@ class USSimulator(object):
       lengths, grid_dimensions, center=True)
     return np.stack([xx, yy, zz], -1)
 
-  def _generate_psf_description(self, frequencies, modes, sigma_frequencies,
+  def _generate_psf_description(self, frequencies, modes, frequency_sigma,
                        numerical_apertures):
     """Returns all cartesian products of frequencies and modes.
 
     Args:
       frequencies: List of frequencies.
       modes: List of gaussian modes.
-      sigma_frequencies: List of same length as `frequencies` containing the
+      frequency_sigma: List of same length as `frequencies` containing the
         standard deviation of the gaussian at `frequency`.
       numerical_apertures: List of same length as `frequencies` describing NA.
 
@@ -108,11 +108,11 @@ class USSimulator(object):
       List of `PsfDescription`
     """
     return [defs.PsfDescription(frequency=freq, mode=mode,
-                                sigma_frequency=sigma_freq,
+                                frequency_sigma=freq_sigma,
                                 numerical_aperture=na)
-            for (freq, sigma_freq, na), mode in
+            for (freq, freq_sigma, na), mode in
             itertools.product(
-              zip(frequencies, sigma_frequencies, numerical_apertures), modes)]
+              zip(frequencies, frequency_sigma, numerical_apertures), modes)]
 
   def _build_psf(
       self,
@@ -128,7 +128,7 @@ class USSimulator(object):
         frequency=description.frequency,
         mode=description.mode,
         numerical_aperture=description.numerical_aperture,
-        frequency_sigma=description.sigma_frequency,
+        frequency_sigma=description.frequency_sigma,
       )[:, 0, :]
 
       # Swap `x` and `z` axes.

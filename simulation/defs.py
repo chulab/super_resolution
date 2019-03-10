@@ -48,22 +48,22 @@ class ObservationSpec(namedtuple(
 
 
 class PsfDescription(namedtuple('PsfDescription',
-             ['frequency', 'mode', 'sigma_frequency', 'numerical_aperture'])):
+             ['frequency', 'mode', 'frequency_sigma', 'numerical_aperture'])):
   """Contains description of PSF."""
 
-  def __new__(cls, frequency: float, mode: int, sigma_frequency: float,
+  def __new__(cls, frequency: float, mode: int, frequency_sigma: float,
               numerical_aperture: float):
     assert isinstance(frequency, float)
     assert 0 <= frequency
     assert isinstance(mode, int)
     assert 0<=mode
-    assert isinstance(sigma_frequency, float)
-    assert 0 <= sigma_frequency
+    assert isinstance(frequency_sigma, float)
+    assert 0 <= frequency_sigma
     assert isinstance(numerical_aperture, float)
     assert 0 <= numerical_aperture
 
     return super(PsfDescription, cls).__new__(
-      cls, frequency, mode, sigma_frequency, numerical_aperture)
+      cls, frequency, mode, frequency_sigma, numerical_aperture)
 
 
 class PSF(namedtuple('PSF', ['psf_description', 'physical_size', 'array'])):
