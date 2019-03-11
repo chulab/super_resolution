@@ -397,8 +397,9 @@ class RotateAndObserveNpTest(tf.test.TestCase):
     for slice in range(6):
       truth.append(
         tensor_utils.rotate_tensor_np(
-          tensor_utils.rotate_tensor_np(state[:, np.newaxis, :, :, np.newaxis], [angles[slice]], 1),
-          [-1 * angles[slice]], 1
+          tensor_utils.rotate_tensor_np(
+            state[:, np.newaxis, :, :, np.newaxis], [angles[slice]], 1, True),
+          [-1 * angles[slice]], 1, True
         )
       )
     truth = np.concatenate(truth, 1)
