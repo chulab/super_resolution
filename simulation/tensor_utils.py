@@ -107,6 +107,7 @@ def rotate_tensor_np(
     tensor: np.ndarray,
     angles: List[float],
     rotation_axis: int,
+    pad_and_trim: bool=False,
 ) -> np.ndarray:
   """Rotates a `np.ndarray` along a given batch dimension.
 
@@ -122,6 +123,10 @@ def rotate_tensor_np(
     tensor: See documentation for `rotate_tensor`.
     angles: See documentation for `rotate_tensor`.
     rotation_axis: See documentation for `rotate_tensor`.
+    pad_and_trim: If `True` then the input is first padded with 0's, and after
+      the rotation is applied, the outer axes are trimmed to return an array
+      with the original size. This makes the function have output similar to
+      that of `rotate_tensor`.
 
   Returns:
     `tf.Tensor` of same shape as `tensor` with rotation applied.
@@ -173,12 +178,20 @@ def rotate_tensor_np(
   # Convert angles from rad to degree.
   angles = [angle * 180. / np.pi for angle in angles]
 
+  # Optionally pad.
+  if pad_and_trim:
+    tensor = np.pad(tensor, [[0, 0], [1, 1], [1, 1], [0, 0]], mode="constant")
+
   # Perform rotation.
   slices = [ndimage.rotate(tensor_slice, angle, reshape=False, order=1, mode="nearest") for
             tensor_slice, angle in zip(tensor, angles)]
 
   # tensor = tf.contrib.image.rotate(tensor, angles, "BILINEAR")
   tensor = np.stack(slices, 0)
+
+  # Trim excess if `pad_and_trim`.
+  if pad_and_trim:
+    tensor = tensor[:, 1:-1, 1:-1]
 
   # Retrieve dimensions compressed into `channels`.
   tensor = np.reshape(tensor, [shape for _, shape in transpose])
