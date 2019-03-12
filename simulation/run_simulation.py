@@ -143,7 +143,6 @@ def simulate_and_save(
 
   # Create `RecordWriter`. This will be used to write out examples.
   writer = record_writer.RecordWriter(
-    observation_spec=observation_spec,
     directory=output_directory,
     dataset_name=dataset_name,
     examples_per_shard=examples_per_shard,
