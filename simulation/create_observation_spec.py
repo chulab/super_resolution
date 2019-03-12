@@ -1,8 +1,7 @@
 """Creates `ObservationSpec`.
 
 Example usage:
-
-python simulation/create_observation_spec.py -sd /Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data -n test_observation_spec -a 0,1.04,2.09 -m 0,1 -f 2e6,5e6,7e6 -gd 1e-4 -tb .1 -na .125
+python simulation/create_observation_spec.py -sd /Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data -n test_observation_spec -gd 1e-4 -a 0,.78,1.57 -m 1 -f 2.e6,4e6 -na .125,.125 -fs 5.e5,5.e5
 """
 
 import argparse
