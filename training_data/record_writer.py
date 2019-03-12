@@ -31,12 +31,10 @@ class RecordWriter(object):
 
   def __init__(
       self,
-      observation_spec: defs.ObservationSpec,
       directory: str,
       dataset_name: str,
       examples_per_shard: int,
   ):
-    self.observation_spec = observation_spec
     self.directory = directory
     self._dataset_name = dataset_name
     self.examples_per_shard = examples_per_shard
@@ -66,16 +64,6 @@ class RecordWriter(object):
     return self._dataset_name
 
   @property
-  def observation_spec(self):
-    return self._observation_spec
-
-  @observation_spec.setter
-  def observation_spec(self, observation_spec):
-    if not isinstance(observation_spec, defs.ObservationSpec):
-      raise ValueError("Not a valid `ObservationSpec`")
-    self._observation_spec = observation_spec
-
-  @property
   def examples_per_shard(self):
     return self._examples_per_shard
 
@@ -94,8 +82,7 @@ class RecordWriter(object):
       observation: `np.ndarray` of shape `[angle_count, height, width, channels]`
         representing simulation on scatterer distribution.
     """
-    example = record_utils._construct_example(
-      distribution, observation, self.observation_spec)
+    example = record_utils._construct_example(distribution, observation)
     self._writer.write(example.SerializeToString())
     self._current_example_in_shard += 1
     # If we have written `_examples_per_shard` then open a new file.

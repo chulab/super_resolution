@@ -31,33 +31,30 @@ class USSimulator(object):
   simulation.
 
   Attributes:
-    angles:
-    frequencies:
-    modes: List of modes (`L>=0`) for simulation. See ``
-    numerical_aperture: Float describing numerical aperture of US device.
-    transducer_bandwidth: Float describing bandwidth of
+    grid_unit: Float describing grid size in meters.
+    angles: List of angles from which to perform simulation.
+    psf_description: List of `PsfDescription` used to construct PSF for
+      simulation.
     psf_axial_length: Float describing physical size of psf used for simulation
       in meters.
     psf_transverse_length: Same as `psf_axial_length` but for transverse
       direction.
-    grid_unit: Float describing grid size in meters.
+
   """
 
   def __init__(
       self,
+      grid_unit: float,
       angles: List[float],
-      frequencies: List[float],
-      modes: List[int],
-      numerical_aperture: float,
-      frequency_sigmas: List[float],
+      psf_descriptions,
       psf_axial_length: float,
-      psf_transverse_length,
-      grid_unit,
+      psf_transverse_length: float,
   ):
     self._grid_unit = grid_unit
+
     self._angles = angles
-    self._frequencies = frequencies
-    self._modes = modes
+
+    self._psf_descriptions = psf_descriptions
 
     self.psf_physical_size = [psf_transverse_length, 0., psf_axial_length]
 
@@ -70,17 +67,10 @@ class USSimulator(object):
     self._psf_coordinates = self._coordinates(self.psf_physical_size,
                                               psf_grid_dimensions)
 
-    self._psf_description = self._generate_psf_description(
-      frequencies=self._frequencies,
-      modes=self._modes,
-      frequency_sigma=frequency_sigmas,
-      numerical_apertures=[numerical_aperture] * len(self._frequencies),
-    )
-
     # Generate the impulse used for simulation.
     self._psf = self._build_psf(
       coordinates=self._psf_coordinates,
-      psf_descriptions=self._psf_description,
+      psf_descriptions=self._psf_descriptions,
     )
 
     # Convert list of psf's into filter with shape
@@ -92,27 +82,6 @@ class USSimulator(object):
     xx, yy, zz = response_functions.coordinate_grid(
       lengths, grid_dimensions, center=True)
     return np.stack([xx, yy, zz], -1)
-
-  def _generate_psf_description(self, frequencies, modes, frequency_sigma,
-                       numerical_apertures):
-    """Returns all cartesian products of frequencies and modes.
-
-    Args:
-      frequencies: List of frequencies.
-      modes: List of gaussian modes.
-      frequency_sigma: List of same length as `frequencies` containing the
-        standard deviation of the gaussian at `frequency`.
-      numerical_apertures: List of same length as `frequencies` describing NA.
-
-    Returns:
-      List of `PsfDescription`
-    """
-    return [defs.PsfDescription(frequency=freq, mode=mode,
-                                frequency_sigma=freq_sigma,
-                                numerical_aperture=na)
-            for (freq, freq_sigma, na), mode in
-            itertools.product(
-              zip(frequencies, frequency_sigma, numerical_apertures), modes)]
 
   def _build_psf(
       self,
@@ -141,8 +110,8 @@ class USSimulator(object):
     return self._psf
 
   @property
-  def psf_description(self):
-    return self._psf_description
+  def psf_descriptions(self):
+    return self._psf_descriptions
 
   @property
   def angles(self):
@@ -151,14 +120,6 @@ class USSimulator(object):
   @angles.setter
   def angles(self, angles):
     self._angles = angles
-
-  @property
-  def frequencies(self):
-    return self._frequencies
-
-  @property
-  def modes(self):
-    return self._modes
 
   @property
   def grid_unit(self):

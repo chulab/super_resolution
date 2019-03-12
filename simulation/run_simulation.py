@@ -134,19 +134,15 @@ def simulate_and_save(
 
   # Create simulator. This will be copied by each `simulation_worker` process.
   simulator = simulate.USSimulator(
+    grid_unit=observation_spec.grid_dimension,
     angles=observation_spec.angles,
-    frequencies=observation_spec.frequencies,
-    modes=observation_spec.modes,
-    numerical_aperture=observation_spec.numerical_aperture,
-    transducer_bandwidth=observation_spec.transducer_bandwidth,
+    psf_descriptions=observation_spec.psf_descriptions,
     psf_axial_length=axial_psf_dimension,
     psf_transverse_length=transverse_psf_dimension,
-    grid_unit=observation_spec.grid_dimension,
   )
 
   # Create `RecordWriter`. This will be used to write out examples.
   writer = record_writer.RecordWriter(
-    observation_spec=observation_spec,
     directory=output_directory,
     dataset_name=dataset_name,
     examples_per_shard=examples_per_shard,
