@@ -6,6 +6,7 @@ python simulation/create_observation_spec.py -sd /Users/noah/Documents/CHU/super
 """
 
 import argparse
+import itertools
 import json
 import os
 import sys
@@ -32,7 +33,80 @@ def load_observation_spec(
 ):
   """Loads `ObservationSpec` from file path."""
   with open(file_path, 'r') as f:
-    return defs.ObservationSpec(**json.load(f))
+    d = json.load(f)
+
+    return defs.ObservationSpec(
+      grid_dimension=d['grid_dimension'],
+      angles=d['angles'],
+      psf_descriptions=[
+        defs.PsfDescription(*description) for description
+        in d['psf_descriptions']]
+    )
+
+
+def _generate_psf_description(frequencies, frequency_sigma, modes,
+                              numerical_aperture):
+  """Returns all cartesian products of frequencies and modes.
+
+  Args:
+    frequencies: List of frequencies.
+    frequency_sigma: List of same length as `frequencies` containing the
+      standard deviation of the gaussian at `frequency`.
+    modes: List of gaussian modes.
+    numerical_aperture: List of same length as `frequencies` describing NA.
+
+  Returns:
+    List of `PsfDescription`
+  """
+  return [defs.PsfDescription(
+    frequency=freq, mode=mode, frequency_sigma=freq_sigma,
+    numerical_aperture=na) for (freq, freq_sigma, na), mode in
+          itertools.product(
+            zip(frequencies, frequency_sigma, numerical_aperture), modes)]
+
+
+def observation_spec_from_frequencies_and_modes(
+    grid_dimension,
+    angles,
+    frequencies,
+    frequency_sigma,
+    numerical_aperture,
+    modes,
+):
+  """Generates a `ObservationSpec` given a set of frequencies and modes.
+
+  First builds a set of `PsfDescription` from the cartesian product of
+  frequencies and modes. Then constructs `ObservationSpec`
+
+  Args:
+    angles: List of angles in radians.
+    frequencies: List of frequencies in Hz.
+    frequency_sigma: List of frequency bandwidths in same order as
+      `frequencies`.
+    numerical_aperture: List of NA in same order as `frequencies`.
+    modes: List of gaussian modes.
+
+  Returns:
+    `ObservationSpec` object.
+  """
+  if any(len(a) != len(b) for a, b in itertools.combinations(
+      [frequencies, frequency_sigma, numerical_aperture], 2)):
+    raise ValueError("`frequencies`, `frequency_sigma`, and "
+                     "`numerical_aperture` must all have same number of "
+                     "elements")
+
+  descriptions = _generate_psf_description(
+    frequencies=frequencies,
+    frequency_sigma=frequency_sigma,
+    modes=modes,
+    numerical_aperture=numerical_aperture
+  )
+
+  return defs.ObservationSpec(
+    grid_dimension=grid_dimension,
+    angles=angles,
+    psf_descriptions=descriptions,
+  )
 
 
 def parse_args():
@@ -47,6 +121,11 @@ def parse_args():
                       help='Optional name.',
                       type=str,
                       required=False)
+
+  parser.add_argument('-gd', '--grid_dimension', dest='grid_dimension',
+                      help='Grid dimension',
+                      type=float,
+                      required=True)
 
   parser.add_argument('-a', '--angles', dest='angles',
                       help='Comma delimited list of angles',
@@ -63,19 +142,14 @@ def parse_args():
                       type=lambda s: [float(f) for f in s.split(',')],
                       required=True)
 
-  parser.add_argument('-gd', '--grid_dimension', dest='grid_dimension',
-                      help='Grid dimension',
-                      type=float,
-                      required=True)
-
-  parser.add_argument('-tb', '--transducer_bandwidth', dest='transducer_bandwidth',
-                      help='Transducer bandwidth.',
-                      type=float,
-                      required=True)
-
   parser.add_argument('-na', '--numerical_aperture', dest='numerical_aperture',
-                      help='numerical aperture',
-                      type=float,
+                      help='List of numerical aperture',
+                      type=lambda s: [float(f) for f in s.split(',')],
+                      required=True)
+
+  parser.add_argument('-fs', '--frequency_sigma', dest='frequency_sigma',
+                      help='List of frequency sigma',
+                      type=lambda s: [float(f) for f in s.split(',')],
                       required=True)
 
   parsed_args = parser.parse_args()
@@ -85,13 +159,13 @@ def parse_args():
 
 def main():
   args = parse_args()
-  observation_spec = defs.ObservationSpec(
+  observation_spec = observation_spec_from_frequencies_and_modes(
+    grid_dimension=args.grid_dimension,
     angles=args.angles,
     frequencies=args.frequencies,
+    frequency_sigma=args.frequency_sigma,
+    numerical_aperture=args.numerical_aperture,
     modes=args.modes,
-    grid_dimension=args.grid_dimension,
-    transducer_bandwidth=args.transducer_bandwidth,
-    numerical_aperture=args.numerical_aperture
   )
   save_observation_spec(observation_spec, args.save_dir, args.name)
 
