@@ -46,7 +46,7 @@ class USSimulator(object):
       self,
       grid_unit: float,
       angles: List[float],
-      psf_descriptions,
+      psf_descriptions: List[defs.PsfDescription],
       psf_axial_length: float,
       psf_transverse_length: float,
   ):

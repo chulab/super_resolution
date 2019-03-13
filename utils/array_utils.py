@@ -17,4 +17,4 @@ def is_broadcast_compatible(
 
 def reduce_split(array: np.ndarray, axis: int):
   """Splits n-dimensional array along `axis` into `n-1` dimensional chunks."""
-  return [np.squeeze(a) for a in np.split(array, array.shape[axis], axis)]
+  return [np.squeeze(a, axis) for a in np.split(array, array.shape[axis], axis)]
