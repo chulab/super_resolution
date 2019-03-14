@@ -77,6 +77,8 @@ class USSimulator(object):
     # `[height, width, 1, psf_count]`.
     self._impulse_filter = psf_utils.to_filter(self._psf, mode="FROM_SINGLE")
 
+    self.rotate_back = False
+
   def _coordinates(self, lengths, grid_dimensions):
     """Makes coordinate grid for impulse response."""
     xx, yy, zz = response_functions.coordinate_grid(
@@ -130,6 +132,14 @@ class USSimulator(object):
     """
     return self._grid_unit
 
+  @property
+  def rotate_back(self):
+    return self._rotate_back
+
+  @rotate_back.setter
+  def rotate_back(self, rotate_back):
+    self._rotate_back = rotate_back
+
   def simulate(
       self,
       scatter_distribution,
@@ -149,4 +159,5 @@ class USSimulator(object):
       scatter_distribution,
       self._angles,
       self._impulse_filter,
+      self._rotate_back,
     )
