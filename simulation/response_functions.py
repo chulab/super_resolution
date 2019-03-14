@@ -1,6 +1,7 @@
 """Contains 1D response functions (PSF) to model US devices."""
 
 import numpy as np
+from scipy import signal
 
 from typing import List
 
@@ -82,6 +83,7 @@ def beam_waist_radius(
   # Convert FWHM to 1 / e ^ 2.
   return _FWHM_1_OVER_E_SQUARED * full_width_half_max_field / 2
 
+
 def gaussian_pulse_v2(
     frequency_sigma,
     length: int,
@@ -100,13 +102,12 @@ def gaussian_pulse_v2(
     `np.ndarray` of shape `[length]` containing pulse window.
 """
   # Compute bandwidth limited gaussian pulse.
-  pulse_sigma_z = _SOUND_SPEED_WATER / (np.pi * 2 * frequency_sigma)
+  pulse_sigma_z = defs._SPEED_OF_SOUND_WATER / (np.pi * 2 * frequency_sigma)
 
   # Discretize pulse on grid.
   pulse_sigma_z_grid = pulse_sigma_z / dz
 
-  return utils.discrete_gaussian(length, pulse_sigma_z_grid)
-
+  return signal.gaussian(length, pulse_sigma_z_grid)
 
 
 def gaussian_pulse(
@@ -204,7 +205,7 @@ def _complex_beam_parameter(
 def coordinate_grid(
     lengths: List[float],
     grid_dimensions: List[float],
-    center,
+    center: bool,
 ):
   """Creates coordinate meshgrids of arbitrary dimension.
 
