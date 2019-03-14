@@ -1,7 +1,7 @@
 """Main file for scatterer distribution construction.
 
 Example usage:
-python training_data/generate_scatterer_dataset.py -o '/Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data' -n 'test_circle' -t 'CIRCLE' -s 10 10 -gd .1 .1  -eps 3 -c 9 -l 500 --min_radius 1 --max_radius 4 --max_count 15 --background_noise .05
+python training_data/generate_scatterer_dataset.py -o '/Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data' -n 'test_circle' -t 'CIRCLE' -s 2.5e-3 2.5e-3 -gd 5e-6 5e-6  -eps 3 -c 9 -l .01  --min_radius 0. --max_radius 1.e-3 --max_count 10 --background_noise 0. --normalize False
 """
 
 import argparse
@@ -49,7 +49,11 @@ def parse_args():
   parser.add_argument('-l', '--lambda', dest='lambda_multiplier',
                       help='Lambda multiplier. See documentation for'
                            '`particle_dataset.poisson_noise`.',
-                      type=int, required=True)
+                      type=float, required=True)
+
+  parser.add_argument('--normalize', dest='normalize_output',
+                      help='Normalize output.',
+                      type=bool, required=True)
 
   args, unknown = parser.parse_known_args()
 
@@ -69,7 +73,7 @@ def main():
   # Add poissonian noise.
   poisson_generator = particle_dataset.poisson_generator(
     distribution_generator, lambda_multiplier=args.lambda_multiplier,
-    normalize_output=True)
+    normalize_output=args.normalize_output)
 
   # Save to disk.
   numpy_dataset_utils.save_dataset(
