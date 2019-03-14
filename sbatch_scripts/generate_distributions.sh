@@ -15,6 +15,7 @@ directory=${PI_HOME}/job_logs/${now}_${job_name}
 ## JOB RUNTIME SPECIFICATIONS
 time='1:00'
 partition=normal
+cpu=1
 gpu_count=0
 
 ## GET INPUTS.
@@ -55,7 +56,27 @@ case $key in
                 shift
         else
             gpu_count=1
-        echo '"gpu_count" set to 1 as no value was given.'
+            echo '"gpu_count" set to 1 as no value was given.'
+        fi
+    shift
+    ;;
+    -t|--time)
+        if [ ! -z "$2" ]; then
+                time=$2
+                shift
+        else
+            echo 'ERROR: "--time" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
+    -c|--cpu)
+        if [ ! -z "$2" ]; then
+                cpu=$2
+                shift
+        else
+            echo 'ERROR: "--cpu" requires non-empty option.'
+            exit 1
         fi
     shift
     ;;
@@ -94,6 +115,7 @@ SBATCH_FILE="${directory}/sbatch_file.txt"
 # the appended 'sbatch_setup_commands'.
 #SBATCH --partition=${partition}
 #SBATCH --time=${time}
+#SBATCH --cpus-per-task=${cpu}
 #SBATCH --mem-per-cpu=4G
 
 $sbatch_setup_commands
