@@ -77,7 +77,6 @@ SBATCH_FILE="${directory}/sbatch_file.txt"
 
 /bin/cat <<EOT >${SBATCH_FILE}
 #!/bin/bash
-
 ## NAME
 #SBATCH --job-name=${job_name}
 
@@ -108,8 +107,8 @@ python3.6 $PI_HOME/super_resolution/super_resolution/training_data/generate_scat
 -t 'CIRCLE' \
 -s 2.5e-3 2.5e-3 \
 -gd 5e-6 5e-6 \
--eps 3 \
--c 9 \
+-eps 30 \
+-c 1000 \
 -l .01 \
 --min_radius 0. \
 --max_radius 1.e-3 \
@@ -117,8 +116,10 @@ python3.6 $PI_HOME/super_resolution/super_resolution/training_data/generate_scat
 --background_noise 0. \
 --normalize False
 
-srun hostname
-srun sleep 60
+python3.6 $PI_HOME/super_resolution/super_resolution/training_data/save_demo_image.py \
+-f $PI_SCRATCH/super_resolution/data/simulation/circle_dataset_3_14/distributions/circle_3_14_1_of_34.npy \
+-gd 5e-6 5e-6
+
 EOT
 
-sbatch "$(< $SBATCH_FILE)"
+sbatch ${SBATCH_FILE}
