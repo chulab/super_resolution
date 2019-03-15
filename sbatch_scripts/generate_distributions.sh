@@ -122,6 +122,8 @@ $sbatch_setup_commands
 
 ml py-numpy/1.14.3_py36
 ml py-scipy/1.1.0_py36
+
+ml viz
 ml py-matplotlib/2.2.2_py36
 
 python3.6 $PI_HOME/super_resolution/super_resolution/training_data/generate_scatterer_dataset.py \
