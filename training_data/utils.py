@@ -24,6 +24,10 @@ def extract_angles_and_frequencies(
   Returns:
     List of tuples containing the rf image, angle, and psf_description.
   """
+  if len(tensor.shape) != 4:
+    raise ValueError("`Tensor` must have shape `[angles, height, width, channel]`"
+                     " but got {}".format(tensor.shape))
+
   # First extract set of images from each angle.
   split_by_angles = array_utils.reduce_split(tensor, 0)
   images = []
