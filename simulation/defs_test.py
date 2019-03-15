@@ -181,6 +181,29 @@ class testObservationSpec(unittest.TestCase):
         ValueError, "All elements in `psf_descriptions`"):
       self.simple_observation_spec(grid_dimension, angles, psf_descriptions)
 
+class testUSImage(unittest.TestCase):
+
+  def simple_US_image(self, image, angle, psf_description,
+  ):
+    return defs.USImage(
+      image=image,
+      angle=angle,
+      psf_description=psf_description,
+    )
+
+  def test_simple_usimage(self):
+    image = np.random.rand(20, 40)
+    angle = 1.4
+    psf_description = defs.PsfDescription(1e6, 2, .1e6, .1)
+
+    usimage = self.simple_US_image(
+      image, angle, psf_description
+    )
+
+    np.testing.assert_equal(image, usimage.image)
+    self.assertEqual(angle, usimage.angle)
+    self.assertCountEqual(psf_description, usimage.psf_description)
+
 
 if __name__ == "__main__":
   unittest.main()

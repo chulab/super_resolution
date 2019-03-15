@@ -71,3 +71,16 @@ class ObservationSpec(namedtuple(
 
     return super(ObservationSpec, cls).__new__(
       cls, grid_dimension, angles, psf_descriptions)
+
+
+class USImage(namedtuple(
+  'USImage', ['image', 'angle', 'psf_description'])):
+
+  def __new(cls, image: np.ndarray, angle: float,
+            psf_description: PsfDescription):
+    assert image.ndim == 2
+    assert 0. <= angle < np.pi
+    assert isinstance(psf_description, PsfDescription)
+
+    return super(USImage, cls).__new__(cls, image, angle, psf_description)
+
