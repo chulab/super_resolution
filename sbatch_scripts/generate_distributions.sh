@@ -18,6 +18,9 @@ partition=normal
 cpu=1
 gpu_count=0
 
+# DISTRIBUTION SIMULATION SPECIFIC ARGUMENTS
+dataset_name=dataset
+
 ## GET INPUTS.
 POSITIONAL=()
 while [[ $# -gt 0 ]]
@@ -30,7 +33,7 @@ case $key in
         Help.
     shift
     ;;
-    -n|--job_name)
+    -jn|--job_name)
         if [ ! -z "$2" ]; then
             job_name=$2
             shift
@@ -52,8 +55,8 @@ case $key in
     ;;
     -g|--gpu_count)
         if [ ! -z "$2" ]; then
-                gpu_count=$2
-                shift
+            gpu_count=$2
+            shift
         else
             gpu_count=1
             echo '"gpu_count" set to 1 as no value was given.'
@@ -62,8 +65,8 @@ case $key in
     ;;
     -t|--time)
         if [ ! -z "$2" ]; then
-                time=$2
-                shift
+            time=$2
+            shift
         else
             echo 'ERROR: "--time" requires non-empty option.'
             exit 1
@@ -72,10 +75,20 @@ case $key in
     ;;
     -c|--cpu)
         if [ ! -z "$2" ]; then
-                cpu=$2
-                shift
+            cpu=$2
+            shift
         else
             echo 'ERROR: "--cpu" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
+    -dn|--dataset_name)
+        if [ ! -z "$2" ]; then
+            dataset_name=$2
+            shift
+        else
+            echo 'ERROR: "--datset_name" requires a non-empty option argument.'
             exit 1
         fi
     shift
@@ -128,8 +141,8 @@ ml viz
 ml py-matplotlib/2.2.2_py36
 
 python3.6 $PI_HOME/super_resolution/super_resolution/training_data/generate_scatterer_dataset.py \
--o $PI_SCRATCH/super_resolution/data/simulation/circle_dataset_3_14/distributions \
--n 'circle_3_14' \
+-o $PI_SCRATCH/super_resolution/data/simulation/${dataset_name}/distributions \
+-n ${dataset_name} \
 -t 'CIRCLE' \
 -s 2.5e-3 2.5e-3 \
 -gd 5e-6 5e-6 \
@@ -140,10 +153,9 @@ python3.6 $PI_HOME/super_resolution/super_resolution/training_data/generate_scat
 --max_radius 1.e-3 \
 --max_count 10 \
 --background_noise 0. \
---normalize False
 
 python3.6 $PI_HOME/super_resolution/super_resolution/training_data/save_demo_image.py \
--f $PI_SCRATCH/super_resolution/data/simulation/circle_dataset_3_14/distributions/circle_3_14_1_of_34.npy \
+-f $PI_SCRATCH/super_resolution/data/simulation/${dataset_name}/distributions/${dataset_name}_00001_* \
 -gd 5e-6 5e-6
 
 EOT
