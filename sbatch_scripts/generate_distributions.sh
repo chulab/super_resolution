@@ -10,7 +10,7 @@ sbatch_setup_commands="# Additional setup commands."
 ## JOB SPECIFICATIONS.
 job_name=distribution_generation
 now=$(date +"%FT%H%M%S")
-log_directory=${PI_HOME}/job_logs/
+directory=${PI_HOME}/job_logs/${now}_${job_name}
 
 ## JOB RUNTIME SPECIFICATIONS
 time='1:00'
@@ -106,13 +106,10 @@ SBATCH_FILE="${directory}/sbatch_file.txt"
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=toyonaga@stanford.edu
 
-## Define directory.
-directory=${log_directory}/\$SLURM_JOBID_${job_name}
-
 # A file for STDOUT from job.
-#SBATCH --output=\${directory}/output.txt
+#SBATCH --output="${directory}/output.txt"
 # A file for STDERR from job.
-#SBATCH --error=\${directory}/error.txt
+#SBATCH --error="${directory}/error.txt"
 
 ##  RUNTIME RESOURCES.
 # Note that if gpu's are requested, the call to gres is included in
