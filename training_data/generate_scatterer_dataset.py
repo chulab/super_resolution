@@ -52,8 +52,11 @@ def parse_args():
                       type=float, required=True)
 
   parser.add_argument('--normalize', dest='normalize_output',
-                      help='Normalize output.',
-                      type=bool, required=True)
+                      help='If `normalize` flag is set, then the scatterer '
+                           'distributions are normalized between 0 and 1. '
+                           'Default is `False`.',
+                      action='store_true')
+  parser.set_defaults(normalize_output=False)
 
   args, unknown = parser.parse_known_args()
 
