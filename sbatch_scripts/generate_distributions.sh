@@ -113,18 +113,17 @@ if [ $gpu_count -gt 0 ]; then
 fi
 
 ## CHECK ARGUMENTS.
-if [ ! -d $output_directory ]; then
+if [ ! -d ${output_directory} ]; then
   # If directory does not exist, then creates it.
-  echo output_directory
-  echo 'ERROR: "output_directory" does not exist'.
+  echo "ERROR: `output_directory` does not exist. Got ${output_directory}"
   exit 1
 fi
 
 ## SET UP JOB DIRECTORIES.
-if [ ! -d $job_directory ]; then
+if [ ! -d ${job_directory} ]; then
   # If directory does not exist, then creates it.
   echo "Job directory does not exist. Making: ${job_directory}"
-  mkdir -p job_directory
+  mkdir -p ${job_directory}
 fi
 
 SBATCH_FILE="${job_directory}/sbatch_file.txt"
