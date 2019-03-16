@@ -131,19 +131,19 @@ fi
 ## CHECK DIRECTORIES.
 if [ ! -d ${output_directory} ]; then
   # If directory does not exist, then creates it.
-  echo "ERROR: `output_directory` does not exist. Got ${output_directory}"
+  echo "ERROR: output_directory does not exist. Got ${output_directory}"
   exit 1
 fi
 
 if [ ! -d ${distribution_path} ]; then
   # If directory does not exist, then creates it.
-  echo 'ERROR: "distribution_path" does not exist'.
+  echo 'ERROR: distribution_path does not exist. Got ${distribution_path}'
   exit 1
 fi
 
 if [ ! -f ${observation_spec_path} ]; then
   # If directory does not exist, then creates it.
-  echo 'ERROR: "distribution" does not exist'.
+  echo 'ERROR: "observation_spec_path" does not exist. Got ${observation_spec_path}'
   exit 1
 fi
 
@@ -203,4 +203,4 @@ python3.6 $PI_HOME/super_resolution/super_resolution/simulation/plot_simulations
 -os ${observation_spec_path}
 EOT
 
-sbatch ${SBATCH_FILE}#!/usr/bin/env bash
+sbatch ${SBATCH_FILE}
