@@ -90,6 +90,36 @@ case $key in
         fi
     shift
     ;;
+    --output_directory)
+        if [ ! -z "$2" ]; then
+            output_directory=$2
+            shift
+        else
+            echo 'ERROR: "--output_directory" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
+    --distribution_path)
+        if [ ! -z "$2" ]; then
+            distribution_path=$2
+            shift
+        else
+            echo 'ERROR: "--distribution_path" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
+    --observation_spec_path)
+        if [ ! -z "$2" ]; then
+            observation_spec_path=$2
+            shift
+        else
+            echo 'ERROR: "--output_directory" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
 esac
 done
 
@@ -99,25 +129,26 @@ if [ $gpu_count -gt 0 ]; then
 fi
 
 ## CHECK DIRECTORIES.
-if [ ! -d output_directory ]; then
+if [ ! -d $output_directory ]; then
   # If directory does not exist, then creates it.
+  echo output_directory
   echo 'ERROR: "output_directory" does not exist'.
   exit 1
 fi
 
-if [ ! -d distribution_path ]; then
+if [ ! -d $distribution_path ]; then
   # If directory does not exist, then creates it.
   echo 'ERROR: "distribution_path" does not exist'.
   exit 1
 fi
 
-if [ ! -d observation_spec_path ]; then
+if [ ! -f $observation_spec_path ]; then
   # If directory does not exist, then creates it.
   echo 'ERROR: "distribution" does not exist'.
   exit 1
 fi
 
-if [ ! -d directory ]; then
+if [ ! -d $directory ]; then
   # If directory does not exist, then creates it.
   mkdir -p $directory
 fi
