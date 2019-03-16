@@ -164,7 +164,7 @@ python3.6 $PI_HOME/super_resolution/super_resolution/training_data/generate_scat
 -n ${dataset_name} \
 -t ${type} \
 -s ${size} ${size} \
--gd ${grid_dimension} ${grid_dimension}\
+-gd ${grid_dimension} ${grid_dimension} \
 -eps ${examples_per_shard} \
 -c ${count} \
 -l ${lambda} \

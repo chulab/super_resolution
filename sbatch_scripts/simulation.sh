@@ -10,7 +10,7 @@ sbatch_setup_commands="# Additional setup commands."
 ## JOB SPECIFICATIONS.
 job_name=distribution_generation
 now=$(date +"%FT%H%M%S")
-directory=${PI_HOME}/job_logs/${now}_${job_name}
+job_directory=${PI_HOME}/job_logs/${now}_${job_name}
 
 ## JOB RUNTIME SPECIFICATIONS
 time='1:00'
@@ -50,12 +50,12 @@ case $key in
         fi
     shift
     ;;
-    -d|--directory)
+    -d|--job_directory)
         if [ ! -z "$2" ]; then
-            directory=$2
+            job_directory=$2
             shift
         else
-            echo 'ERROR: "--directory" requires a non-empty option argument.'
+            echo 'ERROR: "--job_directory" requires a non-empty option argument.'
             exit 1
         fi
     shift
@@ -129,31 +129,33 @@ if [ $gpu_count -gt 0 ]; then
 fi
 
 ## CHECK DIRECTORIES.
-if [ ! -d $output_directory ]; then
+if [ ! -d ${output_directory} ]; then
   # If directory does not exist, then creates it.
-  echo output_directory
-  echo 'ERROR: "output_directory" does not exist'.
+  echo "ERROR: `output_directory` does not exist. Got ${output_directory}"
   exit 1
 fi
 
-if [ ! -d $distribution_path ]; then
+if [ ! -d ${distribution_path} ]; then
   # If directory does not exist, then creates it.
   echo 'ERROR: "distribution_path" does not exist'.
   exit 1
 fi
 
-if [ ! -f $observation_spec_path ]; then
+if [ ! -f ${observation_spec_path} ]; then
   # If directory does not exist, then creates it.
   echo 'ERROR: "distribution" does not exist'.
   exit 1
 fi
 
-if [ ! -d $directory ]; then
+## SET UP JOB DIRECTORIES.
+if [ ! -d ${job_directory} ]; then
   # If directory does not exist, then creates it.
-  mkdir -p $directory
+  echo "Job directory does not exist. Making: ${job_directory}"
+  mkdir -p ${job_directory}
 fi
 
-SBATCH_FILE="${directory}/sbatch_file.txt"
+
+SBATCH_FILE="${job_directory}/sbatch_file.txt"
 
 /bin/cat <<EOT >${SBATCH_FILE}
 #!/bin/bash
@@ -197,7 +199,7 @@ python3.6 $PI_HOME/super_resolution/super_resolution/simulation/run_simulation.p
 -eps ${examples_per_shard}
 
 python3.6 $PI_HOME/super_resolution/super_resolution/simulation/plot_simulations.py \
--f ${output_directory}/test_simulation_0000000
+-f ${output_directory}/test_simulation_0000000 \
 -os ${observation_spec_path}
 EOT
 
