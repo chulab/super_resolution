@@ -10,7 +10,7 @@ sbatch_setup_commands="# Additional setup commands."
 ## JOB SPECIFICATIONS.
 job_name=distribution_generation
 now=$(date +"%FT%H%M%S")
-directory=${PI_HOME}/job_logs/${now}_${job_name}
+job_directory=${PI_HOME}/job_logs/${now}_${job_name}
 
 ## JOB RUNTIME SPECIFICATIONS
 time='1:00'
@@ -19,7 +19,18 @@ cpu=1
 gpu_count=0
 
 # DISTRIBUTION SIMULATION SPECIFIC ARGUMENTS
-dataset_name=dataset
+dataset_name=circle_test
+output_directory=${PI_SCRATCH}/super_resolution/data/simulation/${dataset_name}/distributions
+type=CIRCLE
+size=2.5e-3
+grid_dimension=5e-6
+examples_per_shard=30
+count=100
+lambda=.01
+min_radius=0.
+max_radius=1.e-3
+max_count=10
+background_noise=0.
 
 ## GET INPUTS.
 POSITIONAL=()
@@ -43,12 +54,12 @@ case $key in
         fi
     shift
     ;;
-    -d|--directory)
+    -jd|--job_directory)
         if [ ! -z "$2" ]; then
-            directory=$2
+            job_directory=$2
             shift
         else
-            echo 'ERROR: "--directory" requires a non-empty option argument.'
+            echo 'ERROR: "--job_directory" requires a non-empty option argument.'
             exit 1
         fi
     shift
@@ -101,13 +112,22 @@ if [ $gpu_count -gt 0 ]; then
     sbatch_setup_commands+=$'\n'"#SBATCH --gres gpu:${gpu_count}"
 fi
 
-## SET UP JOB DIRECTORIES.
-if [ ! -d directory ]; then
+## CHECK ARGUMENTS.
+if [ ! -d $output_directory ]; then
   # If directory does not exist, then creates it.
-  mkdir -p $directory
+  echo output_directory
+  echo 'ERROR: "output_directory" does not exist'.
+  exit 1
 fi
 
-SBATCH_FILE="${directory}/sbatch_file.txt"
+## SET UP JOB DIRECTORIES.
+if [ ! -d $job_directory ]; then
+  # If directory does not exist, then creates it.
+  echo "Job directory does not exist. Making: ${job_directory}"
+  mkdir -p job_directory
+fi
+
+SBATCH_FILE="${job_directory}/sbatch_file.txt"
 
 /bin/cat <<EOT >${SBATCH_FILE}
 #!/bin/bash
@@ -120,9 +140,9 @@ SBATCH_FILE="${directory}/sbatch_file.txt"
 #SBATCH --mail-user=toyonaga@stanford.edu
 
 # A file for STDOUT from job.
-#SBATCH --output="${directory}/output.txt"
+#SBATCH --output="${job_directory}/output.txt"
 # A file for STDERR from job.
-#SBATCH --error="${directory}/error.txt"
+#SBATCH --error="${job_directory}/error.txt"
 
 ##  RUNTIME RESOURCES.
 # Note that if gpu's are requested, the call to gres is included in
@@ -141,22 +161,22 @@ ml viz
 ml py-matplotlib/2.2.2_py36
 
 python3.6 $PI_HOME/super_resolution/super_resolution/training_data/generate_scatterer_dataset.py \
--o $PI_SCRATCH/super_resolution/data/simulation/${dataset_name}/distributions \
+-o ${output_directory}
 -n ${dataset_name} \
--t 'CIRCLE' \
--s 2.5e-3 2.5e-3 \
--gd 5e-6 5e-6 \
--eps 30 \
--c 1000 \
--l .01 \
---min_radius 0. \
---max_radius 1.e-3 \
---max_count 10 \
---background_noise 0. \
+-t ${type} \
+-s ${size} ${size} \
+-gd ${grid_dimension} ${grid_dimension}\
+-eps ${examples_per_shard} \
+-c ${count} \
+-l ${lambda} \
+--min_radius ${min_radius} \
+--max_radius ${max_radius} \
+--max_count ${max_count} \
+--background_noise ${background_noise} \
 
 python3.6 $PI_HOME/super_resolution/super_resolution/training_data/save_demo_image.py \
--f $PI_SCRATCH/super_resolution/data/simulation/${dataset_name}/distributions/${dataset_name}_00001_* \
--gd 5e-6 5e-6
+-f ${output_directory}/${dataset_name}_00001_* \
+-gd ${grid_dimension} ${grid_dimension}
 
 EOT
 
