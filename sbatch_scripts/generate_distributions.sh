@@ -160,7 +160,7 @@ ml viz
 ml py-matplotlib/2.2.2_py36
 
 python3.6 $PI_HOME/super_resolution/super_resolution/training_data/generate_scatterer_dataset.py \
--o ${output_directory}
+-o ${output_directory} \
 -n ${dataset_name} \
 -t ${type} \
 -s ${size} ${size} \
