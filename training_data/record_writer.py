@@ -84,6 +84,7 @@ class RecordWriter(object):
     """
     example = record_utils._construct_example(distribution, observation)
     self._writer.write(example.SerializeToString())
+    self._writer.flush()
     self._current_example_in_shard += 1
     # If we have written `_examples_per_shard` then open a new file.
     self._maybe_close()
@@ -103,7 +104,8 @@ class RecordWriter(object):
     self._initialize_file()
 
   def _initialize_file(self):
-    filename = "{}_{}".format(self.dataset_name, self._current_shard)
+    filename = "{name}_{shard:07}".format(
+      name=self.dataset_name, shard=self._current_shard)
     output_file = os.path.join(self.directory, filename)
     self._current_file = output_file
     self._initialize_writer(output_file)
