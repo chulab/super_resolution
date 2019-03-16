@@ -19,10 +19,10 @@ cpu=1
 gpu_count=0
 
 # SIMULATION SPECIFIC ARGUMENTS
-output_directory=$PI_HOME/super_resolution/data/simulation/circle_dataset_3_14/simulation
-distribution_path=$PI_HOME/super_resolution/data/simulation/circle_dataset_3_14/distributions
-worker_count=1
-observation_spec_path=$PI_HOME/super_resolution/data/simulation/circle_dataset_3_14/simulation/observation_spec.json
+output_directory=''
+distribution_path=''
+worker_count=$((10*${cpu})) # Based on sherlock specs.
+observation_spec_path=''
 transverse_psf_length=2.e-3
 axial_psf_length=1.3e-3
 dataset_name_prefix=simulation
@@ -168,9 +168,9 @@ SBATCH_FILE="${job_directory}/sbatch_file.txt"
 #SBATCH --mail-user=toyonaga@stanford.edu
 
 # A file for STDOUT from job.
-#SBATCH --output="${directory}/output.txt"
+#SBATCH --output="${job_directory}/output.txt"
 # A file for STDERR from job.
-#SBATCH --error="${directory}/error.txt"
+#SBATCH --error="${job_directory}/error.txt"
 
 ##  RUNTIME RESOURCES.
 # Note that if gpu's are requested, the call to gres is included in
