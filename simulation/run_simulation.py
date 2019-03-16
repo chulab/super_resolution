@@ -62,7 +62,8 @@ def _simulate(
   """Applies simulate_fn to `input_queue`, places result in `output_queue`."""
   while True:
     distribution = queue_in.get()
-    simulation = simulate_fn(distribution[np.newaxis])
+    simulation = simulate_fn(distribution[np.newaxis])[0]
+    print("Simulating")
     queue_in.task_done()
     queue_out.put((distribution, simulation))
 
@@ -73,6 +74,7 @@ def _save(
 ):
   while True:
     distribution, simulation = queue_in.get()
+    print("Saving")
     save_fn(distribution, simulation)
     queue_in.task_done()
 
@@ -174,14 +176,14 @@ def simulate_and_save(
 
   ### LAUNCH WORKERS ###
 
-  # Launch loading threads.
-  loading_worker.start()
+  # Launch saving workers.
+  [worker.start() for worker in saving_workers]
 
   # Launch simulation threads.
   [worker.start() for worker in simulation_workers]
 
-  # Launch saving workers.
-  [worker.start() for worker in saving_workers]
+  # Launch loading threads.
+  loading_worker.start()
 
   print("BEFORE JOIN")
 

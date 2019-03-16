@@ -86,7 +86,7 @@ def main():
 
   # Save observations.
   observation_images = utils.extract_angles_and_frequencies(
-    observation[0], observation_spec)
+    observation, observation_spec)
 
   for c_i, image in enumerate(observation_images):
     observation_file_name = os.path.join(
