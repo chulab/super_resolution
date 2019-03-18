@@ -197,14 +197,14 @@ def simulate_and_save(
   # Launch loading threads.
   loading_worker.start()
 
-  print("BEFORE JOIN", flush=True)
+  logging.debug("BEFORE JOIN", flush=True)
 
-  time.sleep(1.)
+  time.sleep(5.)
 
   scatterer_queue.join()
   simulated_queue.join()
 
-  print("AFTER JOIN", flush=True)
+  logging.debug("AFTER JOIN", flush=True)
 
   writer.close()
 
