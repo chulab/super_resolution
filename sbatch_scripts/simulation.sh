@@ -16,6 +16,7 @@ job_directory=${PI_HOME}/job_logs/${now}_${job_name}
 time='1:00'
 partition=normal
 cpu=1
+mem_per_cpu=8
 gpu_count=0
 
 # SIMULATION SPECIFIC ARGUMENTS
@@ -86,6 +87,16 @@ case $key in
             shift
         else
             echo 'ERROR: "--cpu" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
+    -m|--mem_per_cpu)
+        if [ ! -z "$2" ]; then
+            mem_per_cpu=$2
+            shift
+        else
+            echo 'ERROR: "--mem_per_cpu" requires non-empty option.'
             exit 1
         fi
     shift
@@ -189,7 +200,7 @@ SBATCH_FILE="${job_directory}/sbatch_file.txt"
 #SBATCH --partition=${partition}
 #SBATCH --time=${time}
 #SBATCH --cpus-per-task=${cpu}
-#SBATCH --mem-per-cpu=4G
+#SBATCH --mem-per-cpu=${mem_per_cpu}
 
 $sbatch_setup_commands
 
