@@ -12,6 +12,9 @@ from typing import List, Callable
 import multiprocessing as mp
 import time
 
+import logging
+import multiprocessing_logging
+
 import numpy as np
 
 # Add `super_resolution` package.
@@ -25,7 +28,6 @@ from training_data import record_writer
 
 from utils import array_utils
 
-
 def _load_data(
   files: List,
   queue: mp.JoinableQueue,
@@ -37,8 +39,8 @@ def _load_data(
     queue: `queue.Queue` in which to put numpy arrays.
   """
   for file in files:
+    logging.info("loading file {}".format(file))
     array = np.load(file)
-
     # `split_array` is a list of individual scatterer distributions.
     split_array = array_utils.reduce_split(array, 0)
 
@@ -53,7 +55,6 @@ def _files_in_directory(
   files=glob.glob(directory + "/*" + extension)
   return sorted(files)
 
-
 def _simulate(
     simulate_fn: Callable,
     queue_in: mp.JoinableQueue,
@@ -61,11 +62,18 @@ def _simulate(
 ):
   """Applies simulate_fn to `input_queue`, places result in `output_queue`."""
   while True:
-    distribution = queue_in.get()
-    simulation = simulate_fn(distribution[np.newaxis])[0]
-    print("Simulating")
-    queue_in.task_done()
-    queue_out.put((distribution, simulation))
+    try:
+      distribution = queue_in.get()
+      logging.debug("Simulating")
+      time_start = time.time()
+      simulation = simulate_fn(distribution[np.newaxis])[0]
+      logging.debug(
+        "Done simulation took {} sec".format(time.time() - time_start))
+      queue_in.task_done()
+      queue_out.put((distribution, simulation))
+    except Exception:
+      logging.error("Fatal error in main loop", exc_info=True)
+
 
 
 def _save(
@@ -74,7 +82,7 @@ def _save(
 ):
   while True:
     distribution, simulation = queue_in.get()
-    print("Saving")
+    logging.info("Saving.")
     save_fn(distribution, simulation)
     queue_in.task_done()
 
@@ -134,6 +142,8 @@ def simulate_and_save(
   filenames = _files_in_directory(
     scatterer_distribution_directory, extension=".npy")
 
+  logging.info("Found files {}".format(filenames))
+
   # Create simulator. This will be copied by each `simulation_worker` process.
   simulator = simulate.USSimulator(
     grid_unit=observation_spec.grid_dimension,
@@ -160,6 +170,8 @@ def simulate_and_save(
       target= _simulate,
       args=(simulator.simulate, scatterer_queue, simulated_queue,)
     )
+    worker.name="simulation_worker_{}".format(i)
+    logging.debug("Instantiating simulation worker {}".format(worker.name))
     worker.daemon = True
     simulation_workers.append(worker)
 
@@ -185,14 +197,14 @@ def simulate_and_save(
   # Launch loading threads.
   loading_worker.start()
 
-  print("BEFORE JOIN")
+  print("BEFORE JOIN", flush=True)
 
-  time.sleep(.1)
+  time.sleep(1.)
 
   scatterer_queue.join()
   simulated_queue.join()
 
-  print("AFTER JOIN")
+  print("AFTER JOIN", flush=True)
 
   writer.close()
 
@@ -253,7 +265,28 @@ def parse_args():
   return parsed_args
 
 
+def _set_up_logging():
+  """Sets up logging."""
+
+  # Check for environmental variable.
+  file_location = os.getenv('JOB_DIRECTORY', '.')
+
+  print("Logging file writing to {}".format(file_location), flush=True)
+
+  logging.basicConfig(
+    filename=os.path.join(file_location, 'simulation.log'),
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(processName)s - %(process)d - %(message)s'
+  )
+  logging.debug("Initialize debug.")
+  multiprocessing_logging.install_mp_handler()
+  logging.debug("Instantiated `mp_handler` to handle multiprocessing.")
+
+
 def main():
+
+  _set_up_logging()
+
   args = parse_args()
 
   directory=args.distribution_path
