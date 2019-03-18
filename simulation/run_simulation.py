@@ -264,11 +264,14 @@ def parse_args():
 
   return parsed_args
 
+
 def _set_up_logging():
-  """Sets up logging"""
+  """Sets up logging."""
 
   # Check for environmental variable.
   file_location = os.getenv('JOB_DIRECTORY', '.')
+
+  print("Logging file writing to {}".format(file_location), flush=True)
 
   logging.basicConfig(
     filename=os.path.join(file_location, 'simulation.log'),
