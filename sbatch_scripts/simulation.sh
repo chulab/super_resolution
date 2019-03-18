@@ -8,7 +8,7 @@
 sbatch_setup_commands="# Additional setup commands."
 
 ## JOB SPECIFICATIONS.
-job_name=distribution_generation
+job_name=simulation
 now=$(date +"%FT%H%M%S")
 job_directory=${PI_HOME}/job_logs/${now}_${job_name}
 
@@ -120,6 +120,16 @@ case $key in
         fi
     shift
     ;;
+    --worker_count)
+        if [ ! -z "$2" ]; then
+            worker_count=$2
+            shift
+        else
+            echo 'ERROR: "--worker_count" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
 esac
 done
 
@@ -154,6 +164,7 @@ if [ ! -d ${job_directory} ]; then
   mkdir -p ${job_directory}
 fi
 
+export JOB_DIRECTORY=${job_directory}
 
 SBATCH_FILE="${job_directory}/sbatch_file.txt"
 
