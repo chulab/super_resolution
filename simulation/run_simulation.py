@@ -297,6 +297,26 @@ def parse_args():
   return parsed_args
 
 
+def _log_system_stats():
+  """Logs basic system stats"""
+
+  # CPU information.
+  try:
+    ncpus = int(os.environ["SLURM_JOB_CPUS_PER_NODE"])
+    logging.debug("Found `SLURM_JOB_CPUS_PER_NODE`")
+  except KeyError:
+    ncpus = mp.cpu_count()
+    logging.debug("Using `mp.cpu_count`")
+  logging.debug("CPU COUNT {}".format(ncpus))
+
+  # Node information
+  try:
+    node_list = int(os.environ["SLURM_JOB_NODELIST"])
+    logging.debug("Found `SLURM_JOB_NODELIST` \n Nodelist {}".format(node_list))
+  except:
+    logging.debug("`SLURM_JOB_NODELIST` not found.")
+
+
 def _set_up_logging():
   """Sets up logging."""
 
@@ -318,6 +338,7 @@ def _set_up_logging():
 def main():
 
   _set_up_logging()
+  _log_system_stats()
 
   args = parse_args()
 
