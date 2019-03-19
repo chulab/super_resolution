@@ -309,6 +309,14 @@ def _log_system_stats():
     logging.debug("Using `mp.cpu_count`")
   logging.debug("CPU COUNT {}".format(ncpus))
 
+  # Memory information.
+  try:
+    mem_per_node = int(os.environ["SLURM_MEM_PER_NODE"])
+    logging.debug("Found `SLURM_MEM_PER_NODE`")
+    logging.debug("MEMORY PER CPU CORE {}".format(mem_per_node / ncpus))
+  except KeyError:
+    logging.debug("Memory information not available.")
+
   # Node information
   try:
     node_list = int(os.environ["SLURM_JOB_NODELIST"])
