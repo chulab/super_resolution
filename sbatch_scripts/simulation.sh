@@ -14,9 +14,9 @@ job_directory=${PI_HOME}/job_logs/${now}_${job_name}
 
 ## JOB RUNTIME SPECIFICATIONS
 time='1:00'
-partition=normal
+partition=hns,normal
 cpu=1
-mem_per_cpu=8G
+mem_per_cpu=4G
 gpu_count=0
 
 # SIMULATION SPECIFIC ARGUMENTS
@@ -145,7 +145,6 @@ esac
 done
 
 if [ $gpu_count -gt 0 ]; then
-    partition='gpu'
     sbatch_setup_commands+=$'\n'"#SBATCH --gres gpu:${gpu_count}"
 fi
 
