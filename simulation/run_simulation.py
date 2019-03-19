@@ -28,6 +28,15 @@ from training_data import record_writer
 
 from utils import array_utils
 
+
+def _files_in_directory(
+    directory,
+    extension: str='',
+):
+  files=glob.glob(directory + "/*" + extension)
+  return sorted(files)
+
+
 def _load_data(
   files: List,
   queue: mp.JoinableQueue,
@@ -38,27 +47,24 @@ def _load_data(
     files: Sorted list of files to be loaded and passed to queue.
     queue: `queue.Queue` in which to put numpy arrays.
   """
-  for file in files:
-    logging.info("loading file {}".format(file))
-    array = np.load(file)
-    # `split_array` is a list of individual scatterer distributions.
-    split_array = array_utils.reduce_split(array, 0)
+  try:
+    for file in files:
+        logging.info("loading file {}".format(file))
+        array = np.load(file)
+        # `split_array` is a list of individual scatterer distributions.
+        split_array = array_utils.reduce_split(array, 0)
 
-    for arr in split_array:
-      queue.put(arr.astype(np.float32))
+        for arr in split_array:
+          queue.put(arr.astype(np.float32))
+          logging.debug("Placed Array in queue")
+  except Exception:
+    logging.error("Fatal error in loading loop", exc_info=True)
 
-
-def _files_in_directory(
-    directory,
-    extension: str='',
-):
-  files=glob.glob(directory + "/*" + extension)
-  return sorted(files)
 
 def _simulate(
     simulate_fn: Callable,
-    queue_in: mp.JoinableQueue,
-    queue_out: mp.JoinableQueue
+    queue_in: mp.Manager().Queue,
+    queue_out: mp.Manager().Queue
 ):
   """Applies simulate_fn to `input_queue`, places result in `output_queue`."""
   while True:
@@ -69,22 +75,28 @@ def _simulate(
       simulation = simulate_fn(distribution[np.newaxis])[0]
       logging.debug(
         "Done simulation took {} sec".format(time.time() - time_start))
-      queue_in.task_done()
       queue_out.put((distribution, simulation))
+      logging.debug("Put array in `outpu_queue`")
+      queue_in.task_done()
     except Exception:
-      logging.error("Fatal error in main loop", exc_info=True)
-
+      logging.error("Fatal error in simulation loop", exc_info=True)
+      break
 
 
 def _save(
     save_fn,
-    queue_in
+    queue_in: mp.Manager().Queue,
 ):
   while True:
-    distribution, simulation = queue_in.get()
-    logging.info("Saving.")
-    save_fn(distribution, simulation)
-    queue_in.task_done()
+    try:
+      logging.info("getting arrs to save.")
+      distribution, simulation = queue_in.get()
+      logging.info("Saving.")
+      save_fn(distribution, simulation)
+      queue_in.task_done()
+    except Exception:
+      logging.error("Fatal error in save", exc_info=True)
+      break
 
 
 def simulate_and_save(
@@ -131,13 +143,14 @@ def simulate_and_save(
     ValueError: If `distributions` does not have shape
       `[num_examples, height, width]`.
   """
+  manager = mp.Manager()
 
   # `scatterer_queue` contains scatterer distributions to be passed to
   # simulation.
-  scatterer_queue = mp.JoinableQueue(maxsize=50)
+  scatterer_queue = manager.Queue(maxsize=30)
 
   # `simulated_queue` contains arrays that have already been simulated.
-  simulated_queue = mp.JoinableQueue(maxsize=50)
+  simulated_queue = manager.Queue(maxsize=30)
 
   filenames = _files_in_directory(
     scatterer_distribution_directory, extension=".npy")
@@ -161,18 +174,25 @@ def simulate_and_save(
   )
 
   # Create loading workers.
-  loading_worker = mp.Process(target=_load_data, args=(filenames, scatterer_queue))
+  loading_worker_count = 1
+  loading_workers = []
+  for i in range(loading_worker_count):
+    worker = mp.Process(target=_load_data, args=(filenames, scatterer_queue))
+    worker.name = "loading_worker_{}".format(i)
+    worker.daemon=True
+    logging.debug("Instantiating loading worker {}".format(worker.name))
+    loading_workers.append(worker)
 
   # Create simulation workers.
   simulation_workers = []
   for i in range(simulation_worker_count):
     worker = mp.Process(
       target= _simulate,
-      args=(simulator.simulate, scatterer_queue, simulated_queue,)
+      args=(simulator.simulate, scatterer_queue, simulated_queue,),
     )
     worker.name="simulation_worker_{}".format(i)
+    worker.daemon=True
     logging.debug("Instantiating simulation worker {}".format(worker.name))
-    worker.daemon = True
     simulation_workers.append(worker)
 
   num_saving_threads = 1
@@ -183,30 +203,42 @@ def simulate_and_save(
       target=_save,
       args=(writer.save, simulated_queue,)
     )
-    worker.daemon = True
+    worker.name="saving_worker_{}".format(i)
+    worker.daemon=True
+    logging.debug("Instantiating saving worker {}".format(worker.name))
     saving_workers.append(worker)
 
   ### LAUNCH WORKERS ###
 
   # Launch saving workers.
   [worker.start() for worker in saving_workers]
+  logging.debug("Started `saving_workers`.")
 
   # Launch simulation threads.
   [worker.start() for worker in simulation_workers]
+  logging.debug("Started `simulation_workers`.")
 
   # Launch loading threads.
-  loading_worker.start()
+  [worker.start() for worker in loading_workers]
+  logging.debug("Started `loading_workers`.")
 
-  logging.debug("BEFORE JOIN", flush=True)
-
-  time.sleep(5.)
+  [worker.join() for worker in loading_workers]
+  logging.debug("Joined `loading_workers`.")
 
   scatterer_queue.join()
-  simulated_queue.join()
+  logging.debug("Joined `scatterer_queue`.")
 
-  logging.debug("AFTER JOIN", flush=True)
+  [worker.terminate() for worker in simulation_workers]
+  logging.debug("Closed `simulation_workers`.")
+
+  simulated_queue.join()
+  logging.debug("Joined `simulated_queues`.")
+
+  [worker.terminate() for worker in saving_workers]
+  logging.debug("Closed `saving_workers`.")
 
   writer.close()
+
 
 def parse_args():
   parser = argparse.ArgumentParser()
