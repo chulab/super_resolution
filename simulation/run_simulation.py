@@ -56,7 +56,7 @@ def _load_data(
 
         for arr in split_array:
           queue.put(arr.astype(np.float32))
-          logging.debug("Placed Array in queue")
+          logging.debug("Put distribution in queue")
   except Exception:
     logging.error("Fatal error in loading loop", exc_info=True)
 
@@ -70,13 +70,13 @@ def _simulate(
   while True:
     try:
       distribution = queue_in.get()
-      logging.debug("Simulating")
+      logging.debug("Starting simulation.")
       time_start = time.time()
       simulation = simulate_fn(distribution[np.newaxis])[0]
       logging.debug(
         "Done simulation took {} sec".format(time.time() - time_start))
       queue_out.put((distribution, simulation))
-      logging.debug("Put array in `outpu_queue`")
+      logging.debug("Put array in `output_queue`")
       queue_in.task_done()
     except Exception:
       logging.error("Fatal error in simulation loop", exc_info=True)
@@ -89,10 +89,13 @@ def _save(
 ):
   while True:
     try:
-      logging.info("getting arrs to save.")
+      logging.info("Loading arrays to save.")
       distribution, simulation = queue_in.get()
-      logging.info("Saving.")
+      logging.info("Starting saving.")
+      time_start=time.time()
       save_fn(distribution, simulation)
+      logging.debug(
+        "Done saving took {} sec".format(time.time() - time_start))
       queue_in.task_done()
     except Exception:
       logging.error("Fatal error in save", exc_info=True)
