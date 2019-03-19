@@ -25,7 +25,7 @@ type=CIRCLE
 size=2.5e-3
 grid_dimension=5e-6
 examples_per_shard=30
-count=100
+distribution_count=100
 lambda=.01
 min_radius=0.
 max_radius=1.e-3
@@ -104,6 +104,16 @@ case $key in
         fi
     shift
     ;;
+    --distribution_count)
+        if [ ! -z "$2" ]; then
+            distribution_count=$2
+            shift
+        else
+            echo 'ERROR: "--distribution_count" requires a non-empty option argument.'
+            exit 1
+        fi
+    shift
+    ;;
 esac
 done
 
@@ -166,7 +176,7 @@ python3.6 $PI_HOME/super_resolution/super_resolution/training_data/generate_scat
 -s ${size} ${size} \
 -gd ${grid_dimension} ${grid_dimension} \
 -eps ${examples_per_shard} \
--c ${count} \
+-c ${distribution_count} \
 -l ${lambda} \
 --min_radius ${min_radius} \
 --max_radius ${max_radius} \
