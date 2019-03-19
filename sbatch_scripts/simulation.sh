@@ -16,7 +16,7 @@ job_directory=${PI_HOME}/job_logs/${now}_${job_name}
 time='1:00'
 partition=normal
 cpu=1
-mem_per_cpu=8
+mem_per_cpu=8G
 gpu_count=0
 
 # SIMULATION SPECIFIC ARGUMENTS
