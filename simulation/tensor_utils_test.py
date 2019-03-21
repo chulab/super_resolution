@@ -210,7 +210,7 @@ class TransposeTest(tf.test.TestCase):
   def testCombineBatchIntoChannels(self):
     tensor = tf.random_uniform([5, 10, 7, 8, 9])
 
-    combined = tensor_utils.combine_batch_into_channels(
+    combined, _, _ = tensor_utils.combine_batch_into_channels(
       tensor, 0
     )
 
@@ -223,6 +223,21 @@ class TransposeTest(tf.test.TestCase):
       combined_eval, truth_eval = sess.run([combined, true_combination])
 
     self.assertAllEqual(truth_eval, combined_eval)
+
+  def testReverseBatchChannels(self):
+    tensor = tf.random_uniform([5, 10, 7, 8, 9])
+
+    combined, transpose, inverse_transpose = tensor_utils.combine_batch_into_channels(
+      tensor, 1
+    )
+
+    reverse = tf.transpose(
+      tf.reshape(combined, [shape for _, shape in transpose]),
+      inverse_transpose)
+
+    with self.test_session() as sess:
+      tensor_eval, reverse_eval = sess.run([tensor, reverse])
+      self.assertAllEqual(tensor_eval, reverse_eval)
 
   @parameterized.expand([
     (4, 1),
