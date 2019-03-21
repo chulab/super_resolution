@@ -220,8 +220,11 @@ def combine_batch_into_channels(
     `tf.Tensor` of shape
       `[preserved_batch_dimension, width, height, new_channels]` where the size
       of `new_channels` depends on the number and size of `batch_dimensions` in
-      `tensor`. Also returns the transposition sequence required to recover
-      the original axis order if
+      `tensor`.
+    `transpose`: tranposition (including axes shapes) used to merge dimensions
+      into channels.
+    `inverse_transpose`: Also returns the transposition sequence required to recover
+      the original axis order.
   """
   tensor_shape = tensor.shape.as_list()
   if exclude_dimension < 0:
@@ -236,7 +239,7 @@ def combine_batch_into_channels(
   # Replace unknown dimension with -1.
   tensor_shape = [-1 if dim is None else dim for dim in tensor_shape]
 
-
+  # `axes` is a list of `axis, shape`
   axes = [(axis, shape) for axis, shape in enumerate(tensor_shape)]
 
   # Keep `rotation_axis` as batch dimension.
@@ -251,12 +254,16 @@ def combine_batch_into_channels(
   # Transpose.
   tensor = tf.transpose(tensor, [axis for axis, _ in transpose])
 
+  # Compute reverse transpose:
+  inverse_transpose = _reverse_transpose_sequence(
+    [axis for axis, _ in transpose])
+
   # Reshape to put all of the batch dimensions into channels.
   return tf.reshape(
     tensor,
     ([shape for _, shape in transpose[:3]] +
      [max(reduce(mul, [shape for _, shape in transpose[3:]], 1), -1)])
-  )
+  ), transpose, inverse_transpose
 
 
 def _reverse_transpose_sequence(transpose_sequence: List):
