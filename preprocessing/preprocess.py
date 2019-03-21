@@ -3,25 +3,26 @@
 import math
 import logging
 
+import numpy as np
+from scipy import signal
 import tensorflow as tf
 
 
-def _gaussian_kernel(
-    size: int,
-    mean: float,
-    std: float,
-  ):
+from simulation import psf_utils
+
+
+def _gaussian_kernel(size: int,
+                        std: float,
+                        ):
   """Makes 2D gaussian Kernel for convolution."""
 
-  d = tf.distributions.Normal(mean, std)
+  vals = signal.gaussian(size * 2 + 1, std)
 
-  vals = d.prob(tf.range(start=-size, limit=size + 1, dtype=tf.float32))
-
-  gauss_kernel = tf.einsum('i,j->ij',
+  gauss_kernel = np.einsum('i,j->ij',
                            vals,
                            vals)
 
-  return gauss_kernel / tf.reduce_sum(gauss_kernel)
+  return gauss_kernel / np.sum(gauss_kernel)
 
 
 class imageBlur(object):
@@ -42,6 +43,7 @@ class imageBlur(object):
       grid_pitch: float,
       sigma_blur: float,
       kernel_size: float,
+      blur_channels: int=1,
   ):
     """Initializes `imageBlur`.
 
@@ -49,6 +51,8 @@ class imageBlur(object):
       grid_pitch: grid dimension in physical units.
       sigma_blur: sigma of gaussian kernel in physical units.
       kernel_size: size of kernel in physical units.
+      blur_channels: Number of channels in image to be blurred. Each channel is
+        treated independently.
     """
     if grid_pitch <= 0:
       raise ValueError("`grid_pitch` must be a positive float.")
@@ -57,9 +61,11 @@ class imageBlur(object):
     if kernel_size <= 0:
       raise ValueError("`kernel_size` must be a positive float.")
 
-    self._kernel = self._gaussian_kernel(grid_pitch, sigma_blur, kernel_size)
+    self._kernel = self._gaussian_kernel(
+      grid_pitch, sigma_blur, kernel_size, blur_channels)
 
-  def _gaussian_kernel(self, grid_pitch, sigma_blur, kernel_size):
+  def _gaussian_kernel(
+      self, grid_pitch, sigma_blur, kernel_size, blur_channels):
     """Constructs gaussian kernel."""
     # Find `kernel_size` in grid units.
     kernel_size_grid = int(math.ceil(kernel_size / grid_pitch))
@@ -70,10 +76,13 @@ class imageBlur(object):
     logging.debug("grid sigma set to {}".format(sigma_blur_grid))
 
     # Make Gaussian Kernel with desired specs.
-    gauss_kernel = _gaussian_kernel(kernel_size_grid, 0., sigma_blur_grid)
+    gauss_kernel = _gaussian_kernel(kernel_size_grid, sigma_blur_grid)
+
+    # List of `gauss_kernel` of same length as number of channels to be blurred.
+    kernel_channels = [gauss_kernel for _ in range(blur_channels)]
 
     # Expand dimensions of `gauss_kernel` for `tf.nn.conv2d` signature.
-    return gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+    return psf_utils.to_filter(kernel_channels, psf_utils._FROM_SAME)
 
   def blur(self, tensor):
     """Blurs input tensor."""
