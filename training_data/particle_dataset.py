@@ -72,7 +72,7 @@ def poisson_noise(
     `np.ndarray` of same size as `array`.
   """
   array = np.random.poisson(array * lambda_multiplier)
-  if normalize_output:
+  if normalize_output and np.sum(array) != 0:
     return array / np.amax(
       array, axis=tuple(range(array.ndim)[1:]), keepdims=True)
   else:
