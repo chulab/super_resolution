@@ -14,11 +14,11 @@ def input_fn(
     shuffle_buffer_size: int=1,
     batch_size: int=1,
     num_parallel_reads: int=1,
-) -> Callable:
+) -> tf.data.Dataset:
   """Returns a dataset for train and eval.
 
   This function first loads tfrecords from `dataset_directory`. These records
-  are parsed using `parse_fn` which should also include .
+  are parsed using `parse_fn` which should also include any preprocessing.
 
   Args:
     dataset_directory: Directory containing `TFRecords` US examples.
@@ -51,5 +51,7 @@ def input_fn(
 
   # Batch.
   dataset = dataset.batch(batch_size=batch_size)
+
+  dataset = dataset.prefetch(tf.contrib.data.AUTOTUNE)
 
   return dataset
