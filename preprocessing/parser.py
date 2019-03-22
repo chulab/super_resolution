@@ -109,7 +109,10 @@ class Parser(object):
         0
       )
 
+    observation, _, _ = tensor_utils.combine_batch_into_channels(
+      observation[tf.newaxis], 0)[0]
+
     logging.debug("observation {}".format(observation))
     logging.debug("distribution {}".format(distribution))
 
-    return distribution[0, ..., 0], observation
+    return observation, distribution[0, ..., 0]
