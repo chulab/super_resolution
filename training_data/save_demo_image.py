@@ -3,9 +3,7 @@
 Saves image in same location as the numpy array.
 
 Example usage:
-  # python save_demo_image.py \
-  # -f $FILE_PATH$ \
-  # -gd .1e-3 .1e-3 \
+  # python training_data/save_demo_image.py -f /Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data/test_circle_00001* -gd 5e-5 5e-5
 
 """
 
