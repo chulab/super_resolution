@@ -6,6 +6,11 @@ from typing import Callable
 
 import tensorflow as tf
 
+def check_for_nan(distribution, observation):
+  """Returns array of 0's if any value in array is a Nan."""
+  return (tf.cond(tf.math.reduce_any(tf.is_nan(distribution)), lambda: tf.zeros_like(distribution), lambda: distribution),
+         tf.cond(tf.math.reduce_any(tf.is_nan(observation)), lambda: tf.zeros_like(observation), lambda: observation))
+
 
 def input_fn(
     dataset_directory: str,
@@ -48,6 +53,9 @@ def input_fn(
 
   # Extract data.
   dataset = dataset.map(parse_fn, num_parallel_calls=num_parallel_reads)
+
+  # Check for Nans.
+  dataset = dataset.map(check_for_nan)
 
   # Batch.
   dataset = dataset.batch(batch_size=batch_size)

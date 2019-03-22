@@ -220,7 +220,7 @@ python3.6 $PI_HOME/super_resolution/super_resolution/simulation/run_simulation.p
 -eps ${examples_per_shard}
 
 python3.6 $PI_HOME/super_resolution/super_resolution/simulation/plot_simulations.py \
--f ${output_directory}/test_simulation_0000000 \
+-f ${output_directory}/${dataset_name_prefix}_0000000 \
 -os ${observation_spec_path}
 EOT
 

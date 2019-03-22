@@ -1,9 +1,7 @@
 """Main file to run simulation on scatterer dataset.
 
 Example usage:
-  python run_simulation.py
-
-"""
+python simulation/run_simulation.py -o /Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data -d /Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data -w 2 -os /Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data/test_observation_spec.json -tpsf 6e-3 -apsf 4e-3 -n test_dataset -eps 2"""
 import argparse
 import glob
 import os
@@ -16,6 +14,9 @@ import logging
 import multiprocessing_logging
 
 import numpy as np
+
+import matplotlib.pyplot as plt
+from matplotlib_scalebar import scalebar
 
 # Add `super_resolution` package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -84,22 +85,54 @@ def _simulate(
 
 
 def _save(
-    save_fn,
+    record_writer,
     queue_in: mp.Manager().Queue,
 ):
   while True:
     try:
       logging.info("Loading arrays to save.")
       distribution, simulation = queue_in.get()
-      logging.info("Starting saving.")
-      time_start=time.time()
-      save_fn(distribution, simulation)
-      logging.debug(
-        "Done saving took {} sec".format(time.time() - time_start))
+      if distribution is not None:
+        logging.info("Starting saving.")
+        time_start=time.time()
+        record_writer.save(distribution, simulation)
+        logging.debug(
+          "Done saving took {} sec".format(time.time() - time_start))
+      else:
+        logging.info("Shutdown signal recieved.")
+        record_writer.close()
+        logging.info("Closed `record_writer`.")
       queue_in.task_done()
     except Exception:
       logging.error("Fatal error in save", exc_info=True)
       break
+
+
+def _save_psf(
+    psfs,
+    descriptions: defs.PsfDescription,
+    observation_spec: defs.ObservationSpec,
+    file_directory,
+):
+  for psf, description in zip(psfs, descriptions):
+    observation_file_name = os.path.join(
+      file_directory, "psf_freq_{}_mode_{}.png".format(
+        description.frequency, description.mode))
+    fig, ax = plt.subplots(1, 1)
+    i = ax.imshow(psf, interpolation=None)
+
+    plt.colorbar(i, ax=ax)
+
+    fig.suptitle(
+      "Frequency {freq} Mode {mode} with {pix} pixels.".format(
+      freq=description.frequency, mode=description.mode, pix=str(psf.shape)
+      ))
+
+    sb = scalebar.ScaleBar(observation_spec.grid_dimension)
+    ax.add_artist(sb)
+
+    plt.savefig(observation_file_name)
+    plt.close(fig)
 
 
 def simulate_and_save(
@@ -169,6 +202,10 @@ def simulate_and_save(
     psf_transverse_length=transverse_psf_dimension,
   )
 
+  # Save psfs.
+  _save_psf(simulator.psf, simulator.psf_descriptions, observation_spec, output_directory)
+  logging.debug("Saved `.png` of psfs.")
+
   # Create `RecordWriter`. This will be used to write out examples.
   writer = record_writer.RecordWriter(
     directory=output_directory,
@@ -204,7 +241,7 @@ def simulate_and_save(
   for i in range(num_saving_threads):
     worker = mp.Process(
       target=_save,
-      args=(writer.save, simulated_queue,)
+      args=(writer, simulated_queue,)
     )
     worker.name="saving_worker_{}".format(i)
     worker.daemon=True
@@ -234,13 +271,14 @@ def simulate_and_save(
   [worker.terminate() for worker in simulation_workers]
   logging.debug("Closed `simulation_workers`.")
 
+  simulated_queue.put((None, None))
+  logging.debug("Placed shutdown object in `simulated_queue`.")
+
   simulated_queue.join()
   logging.debug("Joined `simulated_queues`.")
 
   [worker.terminate() for worker in saving_workers]
   logging.debug("Closed `saving_workers`.")
-
-  writer.close()
 
 
 def parse_args():
