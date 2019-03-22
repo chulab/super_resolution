@@ -38,28 +38,29 @@ def input_fn(
   Returns:
     tf.data.Datset with output `features_labels.`
   """
-  file_pattern = dataset_directory + "*.tfrecord"
-  logging.info("Looking for files with glob {}".format(file_pattern))
+  with tf.variable_scope("Input"):
+    file_pattern = dataset_directory + "*.tfrecord"
+    logging.info("Looking for files with glob {}".format(file_pattern))
 
-  # Makes `Dataset` of file names.
-  files = tf.data.Dataset.list_files(file_pattern, shuffle=False)
+    # Makes `Dataset` of file names.
+    files = tf.data.Dataset.list_files(file_pattern, shuffle=False)
 
-  # Generates `Dataset` from each file and interleaves.
-  dataset = files.interleave(
-    tf.data.TFRecordDataset, cycle_length=interleave_cycle_length)
+    # Generates `Dataset` from each file and interleaves.
+    dataset = files.interleave(
+      tf.data.TFRecordDataset, cycle_length=interleave_cycle_length)
 
-  # Shuffle examples.
-  dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
+    # Shuffle examples.
+    dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
 
-  # Extract data.
-  dataset = dataset.map(parse_fn, num_parallel_calls=num_parallel_reads)
+    # Extract data.
+    dataset = dataset.map(parse_fn, num_parallel_calls=num_parallel_reads)
 
-  # Check for Nans.
-  dataset = dataset.map(check_for_nan)
+    # Check for Nans.
+    dataset = dataset.map(check_for_nan)
 
-  # Batch.
-  dataset = dataset.batch(batch_size=batch_size)
+    # Batch.
+    dataset = dataset.batch(batch_size=batch_size)
 
-  dataset = dataset.prefetch(tf.contrib.data.AUTOTUNE)
+    dataset = dataset.prefetch(tf.contrib.data.AUTOTUNE)
 
-  return dataset
+    return dataset

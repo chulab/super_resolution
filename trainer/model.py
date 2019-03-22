@@ -1,5 +1,7 @@
 """Defines model used to learn reconstruction."""
 
+import logging
+
 import tensorflow as tf
 
 
@@ -22,45 +24,46 @@ def network(input_layer, training):
   """
   input_layer.shape.assert_is_compatible_with([None, None, None, None])
 
-  network = tf.keras.layers.Conv2D(
-    filters=32,
-    kernel_size=[3, 3],
-    dilation_rate=1,
-    padding="same",
-    activation=tf.nn.leaky_relu
-  ).apply(input_layer)
+  with tf.variable_scope("Model"):
+    network = tf.keras.layers.Conv2D(
+      filters=32,
+      kernel_size=[3, 3],
+      dilation_rate=1,
+      padding="same",
+      activation=tf.nn.leaky_relu
+    ).apply(input_layer)
 
-  network = tf.keras.layers.Conv2D(
-    filters=32,
-    kernel_size=[3, 3],
-    dilation_rate=1,
-    padding="same",
-    activation=tf.nn.leaky_relu
-  ).apply(network)
+    network = tf.keras.layers.Conv2D(
+      filters=32,
+      kernel_size=[3, 3],
+      dilation_rate=1,
+      padding="same",
+      activation=tf.nn.leaky_relu
+    ).apply(network)
 
-  network = tf.keras.layers.Conv2D(
-    filters=32,
-    kernel_size=[6, 6],
-    dilation_rate=1,
-    padding="same",
-    activation=tf.nn.leaky_relu
-  ).apply(network)
+    network = tf.keras.layers.Conv2D(
+      filters=32,
+      kernel_size=[6, 6],
+      dilation_rate=1,
+      padding="same",
+      activation=tf.nn.leaky_relu
+    ).apply(network)
 
-  network = tf.keras.layers.Conv2D(
-    filters=32,
-    kernel_size=[10, 10],
-    dilation_rate=1,
-    padding="same",
-    activation=tf.nn.leaky_relu
-  ).apply(network)
+    network = tf.keras.layers.Conv2D(
+      filters=32,
+      kernel_size=[10, 10],
+      dilation_rate=1,
+      padding="same",
+      activation=tf.nn.leaky_relu
+    ).apply(network)
 
-  network = tf.keras.layers.Conv2D(
-    filters=1,
-    kernel_size=[10, 10],
-    dilation_rate=1,
-    padding="same",
-    activation=tf.nn.leaky_relu
-  ).apply(network)
+    network = tf.keras.layers.Conv2D(
+      filters=1,
+      kernel_size=[10, 10],
+      dilation_rate=1,
+      padding="same",
+      activation=tf.nn.leaky_relu
+    ).apply(network)
 
   return network
 
@@ -81,7 +84,11 @@ def model_fn(features, labels, mode, params):
     `tf.Estimator.EstimatorSpec` object.
   """
   observations = features
+  logging.debug("`observations` tensor recieved in model is "
+                "{}".format(observations))
   distributions = labels
+  logging.debug("`distributions` tensor recieved in model is "
+                "{}".format(distributions))
 
   if mode == tf.estimator.ModeKeys.TRAIN:
     training = True
@@ -92,41 +99,34 @@ def model_fn(features, labels, mode, params):
   predictions = network(observations, training)[..., 0]
 
   # Loss. Compare output of nn to original images.
-  l2_loss = tf.reduce_sum((predictions - distributions) ** 2)
-  loss = l2_loss
+  with tf.variable_scope("loss"):
+    l2_loss = tf.reduce_sum((predictions - distributions) ** 2)
+    loss = l2_loss
 
-  rms_errror = tf.metrics.root_mean_squared_error(
-    labels=distributions, predictions=predictions)
+  with tf.variable_scope("metrics"):
+    rms_error = tf.metrics.root_mean_squared_error(
+      labels=distributions, predictions=predictions)
 
-  eval_metric_ops = {
-    "rms_error": rms_errror,
-  }
+    eval_metric_ops = {
+      "rms_error": rms_error,
+    }
 
-  if mode == tf.estimator.ModeKeys.TRAIN:
+  with tf.variable_scope("optimizer"):
     optimizer = tf.train.AdamOptimizer(params.learning_rate)
     train_op = optimizer.minimize(
       loss, global_step=tf.train.get_global_step())
-    return tf.estimator.EstimatorSpec(
-      mode=mode,
-      loss=loss,
-      train_op=train_op,
-      eval_metric_ops=eval_metric_ops,
-    )
 
-  if mode == tf.estimator.ModeKeys.PREDICT:
-    return tf.estimator.EstimatorSpec(
-      mode=mode,
-      predictions={
+  return tf.estimator.EstimatorSpec(
+    mode=mode,
+    loss=loss,
+    train_op=train_op,
+    predictions={
       "predictions": predictions,
       "observations": observations,
       "distributions": distributions,
-    }
-    )
-
-  if mode == tf.estimator.ModeKeys.EVAL:
-    # Evaluation metric.
-    return tf.estimator.EstimatorSpec(
-      mode=mode, loss=loss, eval_metric_ops=eval_metric_ops, )
+    },
+    eval_metric_ops = eval_metric_ops
+  )
 
 
 def build_estimator(

@@ -1,4 +1,8 @@
-"""Main module for training super resolution network."""
+"""Main module for training super resolution network.
+
+Example usage (run on data in `simulation/training_data`
+Noahs-MacBook-Pro-2:super_resolution noah$ python trainer/train.py -o trainer/test_output --distribution_blur_sigma 1e-3 --observation_blur_sigma 1e-3 --distribution_downsample_size 100,100 --observation_downsample_size 100,100 --example_size 101,101 --train_steps 10 --train_dataset_directory simulation/test_data/ --eval_dataset_directory simulation/test_data/ --observation_spec_path simulation/test_data/test_observation_spec.json
+"""
 import argparse
 import logging
 import os
@@ -183,10 +187,40 @@ def parse_args():
     required=False,
   )
 
-  return parser.parse_known_args()
+  parser.add_argument(
+    '--learning_rate',
+    dest='learning_rate',
+    type=float,
+    default=.001,
+    required=False,
+  )
+
+  args, _ = parser.parse_known_args()
+
+  return args
+
+
+def _set_up_logging():
+  """Sets up logging."""
+
+  # Check for environmental variable.
+  file_location = os.getenv('JOB_DIRECTORY', '.')
+
+  print("Logging file writing to {}".format(file_location), flush=True)
+
+  logging.basicConfig(
+    filename=os.path.join(file_location, 'training.log'),
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(processName)s - %(process)d - %(message)s'
+  )
+
+  logging.debug("Initialize debug.")
 
 
 def main():
+
+  _set_up_logging()
+
   args = parse_args()
 
   observation_spec = create_observation_spec.load_observation_spec(
