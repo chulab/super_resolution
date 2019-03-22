@@ -1,6 +1,7 @@
 """Defines `RecordWriter` class which writes TFRecords."""
 
 import os
+import logging
 
 import numpy as np
 import tensorflow as tf
@@ -46,7 +47,6 @@ class RecordWriter(object):
     # The `_currente_example_in_shard` is the number of the NEXT example to be
     # written. I.e. upon the next call to `save`.
     self._current_example_in_shard = 0
-
     self._writer = None
 
   @property
@@ -91,6 +91,7 @@ class RecordWriter(object):
       example = record_utils._construct_example(distribution, observation)
       self._writer.write(example.SerializeToString())
       self._writer.flush()
+      logging.debug("Flushed writer {}.".format(self._writer))
       self._current_example_in_shard += 1
 
   def close(self):
@@ -108,6 +109,7 @@ class RecordWriter(object):
 
   def _close_current_file_and_initialize(self):
     self._writer.close()
+    logging.debug("closed current writer")
     self._current_shard += 1
     self._initialize_file()
 
@@ -121,3 +123,4 @@ class RecordWriter(object):
 
   def _initialize_writer(self, file):
     self._writer = tf.python_io.TFRecordWriter(file)
+    logging.info("Initialized writer with file {}".format(file))
