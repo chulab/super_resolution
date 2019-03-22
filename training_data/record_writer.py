@@ -2,9 +2,9 @@
 
 import os
 
+import numpy as np
 import tensorflow as tf
 
-from simulation import defs
 from training_data import record_utils
 
 class RecordWriter(object):
@@ -40,14 +40,14 @@ class RecordWriter(object):
     self.examples_per_shard = examples_per_shard
 
     # The `_current_shard` is always the shard to which examples are written.
-    self._current_shard = 0
+    self._current_shard = -1
     # The `_current_file` is the file to which examples are written.
     self._current_file = None
     # The `_currente_example_in_shard` is the number of the NEXT example to be
     # written. I.e. upon the next call to `save`.
     self._current_example_in_shard = 0
 
-    self._initialize_file()
+    self._writer = None
 
   @property
   def directory(self):
@@ -73,6 +73,9 @@ class RecordWriter(object):
       raise ValueError("`examples_per_shard` must be positive integer")
     self._examples_per_shard = examples_per_shard
 
+  def check_not_nan(self, array):
+    return not np.isnan(array).any()
+
   def save(self, distribution, observation):
     """Saves an example to the current file.
 
@@ -82,21 +85,26 @@ class RecordWriter(object):
       observation: `np.ndarray` of shape `[angle_count, height, width, channels]`
         representing simulation on scatterer distribution.
     """
-    example = record_utils._construct_example(distribution, observation)
-    self._writer.write(example.SerializeToString())
-    self._writer.flush()
-    self._current_example_in_shard += 1
-    # If we have written `_examples_per_shard` then open a new file.
-    self._maybe_close()
+    if self.check_not_nan(distribution) and self.check_not_nan(observation):
+      # If we have written `_examples_per_shard` then open a new file.
+      self._maybe_reinitialize()
+      example = record_utils._construct_example(distribution, observation)
+      self._writer.write(example.SerializeToString())
+      self._writer.flush()
+      self._current_example_in_shard += 1
 
   def close(self):
     """Closes current file."""
     self._writer.close()
 
-  def _maybe_close(self):
+  def _maybe_reinitialize(self):
     """Checks number of examples written and opens new file if necessary."""
     if self._current_example_in_shard == self._examples_per_shard:
       self._close_current_file_and_initialize()
+    # If this is the first file.
+    if self._current_shard == -1:
+      self._current_shard +=1
+      self._initialize_file()
 
   def _close_current_file_and_initialize(self):
     self._writer.close()

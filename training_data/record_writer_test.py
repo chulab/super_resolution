@@ -76,7 +76,7 @@ class TestRecordWriter(tf.test.TestCase):
 
     files = glob.glob(self.test_dir + "/*")
     # Check written file has expected name.
-    self.assertEqual([self.test_dir+"/"+name+"_0"], files)
+    self.assertEqual([self.test_dir+"/"+name+"_0000000"], files)
 
     test_dataset = tf.data.TFRecordDataset(files)
     test_dataset = test_dataset.map(record_utils._parse_example)
@@ -112,8 +112,8 @@ class TestRecordWriter(tf.test.TestCase):
 
     files = glob.glob(self.test_dir + "/*")
     # Check written file has expected name.
-    self.assertEqual(sorted([self.test_dir+"/"+name+"_0", self.test_dir+"/"+name+"_1",
-                      self.test_dir + "/" + name + "_2"]), sorted(files))
+    self.assertEqual(sorted([self.test_dir+"/"+name+"_0000000", self.test_dir+"/"+name+"_0000001",
+                      self.test_dir + "/" + name + "_0000002"]), sorted(files))
 
     test_dataset = tf.data.TFRecordDataset(sorted(files))
     test_dataset = test_dataset.map(record_utils._parse_example)
@@ -128,8 +128,16 @@ class TestRecordWriter(tf.test.TestCase):
         self.assertAllEqual(distributions[i], dist_eval)
         self.assertAllEqual(observations[i], obs_eval)
 
-  def testWriterClosed(self):
-    pass
+  def test_writer_no_nan(self):
+    name = "test_name"
+    examples_per_shard = 23
+    rw = record_writer.RecordWriter(self.test_dir, name, examples_per_shard)
+
+    rw.save(np.random.rand(10, 10), np.array([1., 0., np.nan, 3.]))
+
+    rw.save(np.array([1., 0., np.nan, 3.]), np.random.rand(10, 10))
+
+    self.assertEqual(0, len(glob.glob(self.test_dir + "/*")))
 
 
 if __name__ == "__main__":
