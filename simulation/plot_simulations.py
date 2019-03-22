@@ -4,9 +4,7 @@ Saves plots in same location as simulation data.
 
 Example usage:
 
-  # python plot_simulations.py \
-  # -f $FILE_PATH$ \
-  # -gd .1e-3 .1e-3 \
+  # python simulation/plot_simulations.py -f simulation/test_data/*0 -os /Users/noah/Documents/CHU/super_resolution/super_resolution/simulation/test_data/test_observation_spec.json
 """
 import argparse
 import os
