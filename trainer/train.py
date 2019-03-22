@@ -11,6 +11,8 @@ import tensorflow as tf
 
 from preprocessing import input
 from preprocessing import parser
+from simulation import create_observation_spec
+
 from trainer import model
 
 
@@ -143,6 +145,13 @@ def parse_args():
   )
 
   parser.add_argument(
+    '--observation_spec_path',
+    dest='observation_spec_path',
+    type=str,
+    required=True,
+  )
+
+  parser.add_argument(
     '--interleave_cycle_length',
     dest='interleave_cycle_length',
     type=int,
@@ -180,7 +189,9 @@ def parse_args():
 def main():
   args = parse_args()
 
-  observation_spec = ...
+  observation_spec = create_observation_spec.load_observation_spec(
+    args.observation_spec_path
+  )
 
   train_parse_fn = parser.Parser(
     observation_spec=observation_spec,
