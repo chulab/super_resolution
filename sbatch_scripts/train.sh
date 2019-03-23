@@ -67,8 +67,8 @@ case $key in
             gpu_count=$2
             shift
         else
-            gpu_count=1
-            echo '"gpu_count" set to 1 as no value was given.'
+            echo 'ERROR: "--gpu_count" requires non-empty option.'
+            exit 1
         fi
     shift
     ;;
@@ -118,6 +118,16 @@ case $key in
             shift
         else
             echo 'ERROR: "--observation_blur_sigma" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
+    --observation_downsample_size)
+        if [ ! -z "$2" ]; then
+            observation_downsample_size=$2
+            shift
+        else
+            echo 'ERROR: "--observation_downsample_size" requires non-empty option.'
             exit 1
         fi
     shift
@@ -268,4 +278,4 @@ python3.6 $PI_HOME/super_resolution/super_resolution/trainer/train.py \
 
 EOT
 
-sbatch ${SBATCH_FILE}
+#sbatch ${SBATCH_FILE}
