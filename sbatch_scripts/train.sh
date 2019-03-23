@@ -197,12 +197,32 @@ if [ ! -d ${output_dir} ]; then
   exit 1
 fi
 
+if [ ! -d ${train_dataset_directory} ]; then
+  # If directory does not exist, then creates it.
+  echo 'ERROR: train_dataset_directory does not exist. Got ${train_dataset_directory}'
+  exit 1
+fi
+
+if [ ! -d ${eval_dataset_directory} ]; then
+  # If directory does not exist, then creates it.
+  echo 'ERROR: eval_dataset_directory does not exist. Got ${eval_dataset_directory}'
+  exit 1
+fi
+
+if [ ! -f ${observation_spec_path} ]; then
+  # If directory does not exist, then creates it.
+  echo 'ERROR: "observation_spec_path" does not exist. Got ${observation_spec_path}'
+  exit 1
+fi
+
 ## SET UP JOB DIRECTORIES.
 if [ ! -d ${job_directory} ]; then
   # If directory does not exist, then creates it.
   echo "Job directory does not exist. Making: ${job_directory}"
   mkdir -p ${job_directory}
 fi
+
+export JOB_DIRECTORY=${job_directory}
 
 SBATCH_FILE="${job_directory}/sbatch_file.txt"
 
