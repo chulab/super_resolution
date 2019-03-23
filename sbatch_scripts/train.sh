@@ -233,7 +233,7 @@ $sbatch_setup_commands
 
 ml py-scipy/1.1.0_py36
 
-python3.6 $PI_HOME/super_resolution/super_resolution/training/train.py \
+python3.6 $PI_HOME/super_resolution/super_resolution/trainer/train.py \
 --output_dir ${output_dir} \
 --distribution_blur_sigma ${distribution_blur_sigma} \
 --observation_blur_sigma ${observation_blur_sigma} \
