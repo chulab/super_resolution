@@ -248,4 +248,4 @@ python3.6 $PI_HOME/super_resolution/super_resolution/trainer/train.py \
 
 EOT
 
-# sbatch ${SBATCH_FILE}
+sbatch ${SBATCH_FILE}
