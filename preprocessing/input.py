@@ -19,6 +19,7 @@ def input_fn(
     shuffle_buffer_size: int=1,
     batch_size: int=1,
     num_parallel_reads: int=1,
+    file_signature: str="*.tfrecord"
 ) -> tf.data.Dataset:
   """Returns a dataset for train and eval.
 
@@ -34,12 +35,13 @@ def input_fn(
     batch_size: Number of examples per batch.
     num_parallel_reads: Number of examples to process in parallel (using
     `parse_fn`).
+    file_signature: Glob signature of files in `dataset_directory`
 
   Returns:
     tf.data.Datset with output `features_labels.`
   """
   with tf.variable_scope("Input"):
-    file_pattern = dataset_directory + "*.tfrecord"
+    file_pattern = dataset_directory + file_signature
     logging.info("Looking for files with glob {}".format(file_pattern))
 
     # Makes `Dataset` of file names.

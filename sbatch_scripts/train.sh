@@ -192,6 +192,16 @@ case $key in
         fi
     shift
     ;;
+    --train_steps)
+        if [ ! -z "$2" ]; then
+            train_steps=$2
+            shift
+        else
+            echo 'ERROR: "--train_steps" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
 esac
 done
 

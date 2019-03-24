@@ -1,7 +1,7 @@
 """Main module for training super resolution network.
 
 Example usage (run on data in `simulation/training_data`
-Noahs-MacBook-Pro-2:super_resolution noah$ python trainer/train.py -o trainer/test_output --distribution_blur_sigma 1e-3 --observation_blur_sigma 1e-3 --distribution_downsample_size 100,100 --observation_downsample_size 100,100 --example_size 101,101 --train_steps 10 --train_dataset_directory simulation/test_data/ --eval_dataset_directory simulation/test_data/ --observation_spec_path simulation/test_data/test_observation_spec.json
+python trainer/train.py -o trainer/test_output --distribution_blur_sigma 1e-3 --observation_blur_sigma 1e-3 --distribution_downsample_size 100,100 --observation_downsample_size 100,100 --example_size 101,101 --train_steps 10 --train_dataset_directory simulation/test_data/ --eval_dataset_directory simulation/test_data/ --observation_spec_path simulation/test_data/test_observation_spec.json
 """
 import argparse
 import logging
@@ -236,6 +236,7 @@ def main():
     observation_downsample_size=args.observation_downsample_size,
     example_size=args.example_size,
   ).parse
+  logging.info("Initialized `train_parse_fn`.")
 
   eval_parse_fn = parser.Parser(
     observation_spec=observation_spec,
@@ -246,6 +247,7 @@ def main():
     observation_downsample_size=args.observation_downsample_size,
     example_size=args.example_size,
   ).parse
+  logging.info("Initialized `eval_parse_fn`.")
 
   hparams = model.make_hparams()
   hparams.learning_rate = args.learning_rate

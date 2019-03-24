@@ -37,6 +37,8 @@ class Parser(object):
       kernel_size=2 * distribution_blur_sigma,
       blur_channels=1,
     )
+    logging.debug("Initialized `_distribution_blur`.")
+
     self._observation_blur = preprocess.imageBlur(
       grid_pitch=observation_spec.grid_dimension,
       sigma_blur=observation_blur_sigma,
@@ -44,6 +46,8 @@ class Parser(object):
       blur_channels=len(observation_spec.psf_descriptions) * len(
         observation_spec.angles)
     )
+    logging.debug("Initialized `_observation_blur`.")
+
     self._distribution_downsample_size = distribution_downsample_size
     self._observation_downsample_size = observation_downsample_size
 
