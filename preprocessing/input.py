@@ -47,6 +47,8 @@ def input_fn(
     # Makes `Dataset` of file names.
     files = tf.data.Dataset.list_files(file_pattern, shuffle=False)
 
+    files = files.repeat()
+
     # Generates `Dataset` from each file and interleaves.
     dataset = files.interleave(
       tf.data.TFRecordDataset, cycle_length=interleave_cycle_length)
