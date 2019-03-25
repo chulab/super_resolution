@@ -15,6 +15,8 @@ import tensorflow as tf
 
 from preprocessing import input
 from preprocessing import parser
+from preprocessing import test_input_pipeline
+
 from simulation import create_observation_spec
 
 from trainer import model
@@ -58,6 +60,10 @@ def train_and_evaluate(
       batch_size=1,
       num_parallel_reads=1,
     )
+
+  test_input_pipeline.save_input(train_input(), "train", output_directory)
+  test_input_pipeline.save_input(eval_input(), "eval", output_directory)
+  logging.info("Saved input examples.")
 
   logging.info("Defining `train_spec`.")
   train_spec = tf.estimator.TrainSpec(
