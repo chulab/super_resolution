@@ -103,28 +103,43 @@ def model_fn(features, labels, mode, params):
     l2_loss = tf.reduce_sum((predictions - distributions) ** 2)
     loss = l2_loss
 
-  with tf.variable_scope("metrics"):
-    rms_error = tf.metrics.root_mean_squared_error(
-      labels=distributions, predictions=predictions)
-
-    eval_metric_ops = {
-      "rms_error": rms_error,
-    }
+    # Add loss summary.
+    tf.summary.scalar("loss", loss)
 
   with tf.variable_scope("optimizer"):
     optimizer = tf.train.AdamOptimizer(params.learning_rate)
     train_op = optimizer.minimize(
       loss, global_step=tf.train.get_global_step())
 
+  with tf.variable_scope("metrics"):
+    rms_error = tf.metrics.root_mean_squared_error(
+      labels=distributions, predictions=predictions)
+
+    # Add eval summary.
+    tf.summary.scalar("rms_error", rms_error[0])
+
+    eval_metric_ops = {
+      "rms_error": rms_error,
+    }
+
+  with tf.variable_scope("predictions"):
+    predict_output = {
+      "predictions": predictions,
+      "observations": observations,
+      "distributions": distributions,
+    }
+
+    # Add image summaries.
+    tf.summary.image("observation", observations[..., 0, tf.newaxis], 1)
+    tf.summary.image("distributions", distributions[..., tf.newaxis], 1)
+    tf.summary.image("predictions", predictions[..., tf.newaxis], 1)
+
+
   return tf.estimator.EstimatorSpec(
     mode=mode,
     loss=loss,
     train_op=train_op,
-    predictions={
-      "predictions": predictions,
-      "observations": observations,
-      "distributions": distributions,
-    },
+    predictions=predict_output,
     eval_metric_ops = eval_metric_ops
   )
 
