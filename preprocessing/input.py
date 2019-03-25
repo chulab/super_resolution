@@ -45,7 +45,7 @@ def input_fn(
     logging.info("Looking for files with glob {}".format(file_pattern))
 
     # Makes `Dataset` of file names.
-    files = tf.data.Dataset.list_files(file_pattern, shuffle=False)
+    files = tf.data.Dataset.list_files(file_pattern, shuffle=True)
 
     files = files.repeat()
 
