@@ -105,17 +105,6 @@ class Parser(object):
     observation = tf.image.resize_images(
       observation, self._observation_downsample_size)
 
-    # Optionally rotate back.
-    if self._reverse_rotation:
-      observation = tensor_utils.rotate_tensor(
-        observation,
-        tf.convert_to_tensor([-1 * angle for angle in self._observation_spec.angles]),
-        0
-      )
-
-    observation = tensor_utils.combine_batch_into_channels(
-      observation[tf.newaxis], 0)[0][0]
-
     logging.debug("observation {}".format(observation))
     logging.debug("distribution {}".format(distribution))
 

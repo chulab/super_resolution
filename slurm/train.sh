@@ -19,6 +19,7 @@ gpu_count=0
 
 # TRAIN SPECIFIC ARGUMENTS
 output_dir="trainer/test_output"
+model_type="ANGLE_FIRST"
 distribution_blur_sigma="1e-3"
 observation_blur_sigma="1e-3"
 distribution_downsample_size="100,100"
@@ -29,6 +30,7 @@ train_dataset_directory="simulation/test_data/"
 eval_dataset_directory="simulation/test_data/"
 observation_spec_path="simulation/test_data/test_observation_spec.json"
 learning_rate=".001"
+
 
 ## GET INPUTS.
 POSITIONAL=()
@@ -202,6 +204,16 @@ case $key in
         fi
     shift
     ;;
+    --model_type)
+        if [ ! -z "$2" ]; then
+            model_type=$2
+            shift
+        else
+            echo 'ERROR: "--model_type" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
 esac
 done
 
@@ -275,6 +287,7 @@ ml py-scipy/1.1.0_py36
 
 python3.6 $PI_HOME/super_resolution/super_resolution/trainer/train.py \
 --output_dir ${output_dir} \
+--model_type ${model_type} \
 --distribution_blur_sigma ${distribution_blur_sigma} \
 --observation_blur_sigma ${observation_blur_sigma} \
 --distribution_downsample_size ${distribution_downsample_size} \

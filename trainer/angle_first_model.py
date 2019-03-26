@@ -3,8 +3,7 @@
 import logging
 
 import tensorflow as tf
-
-from simulation import tensor_utils
+from utils import array_utils
 
 
 def make_hparams() -> dict:
@@ -15,37 +14,10 @@ def make_hparams() -> dict:
   }
 
 
-def network(input_layer, angles, training):
-  """Defines network.
-
-  Args:
-    `input_layer`: `tf.Tensor` node which outputs shapes `[b, h, w, c]`.
-    These represent observations.
-    training: Bool which sets whether network is in a training or evaluation/
-      test mode. (Drop out is turned on during training but off during
-      eval.)
-  """
-  input_layer.shape.assert_is_compatible_with(
-    [None, len(angles), None, None, None])
-
-  network = tensor_utils.rotate_tensor(
-    input_layer,
-    tf.convert_to_tensor([-1 * angle for angle in angles]),
-    1
-  )
-
-  network = tensor_utils.combine_batch_into_channels(network, 0)[0]
-
-  logging.info("Before feeding model {}".format(network))
-
-  with tf.variable_scope("Model"):
-    network = tf.keras.layers.Conv2D(
-      filters=32,
-      kernel_size=[3, 3],
-      dilation_rate=1,
-      padding="same",
-      activation=tf.nn.leaky_relu
-    ).apply(network)
+def AngleModule(input_shape):
+  """Defines angle module."""
+  with tf.name_scope("angle_module"):
+    inputs = tf.keras.Input(shape=input_shape)
 
     network = tf.keras.layers.Conv2D(
       filters=32,
@@ -53,7 +25,7 @@ def network(input_layer, angles, training):
       dilation_rate=1,
       padding="same",
       activation=tf.nn.leaky_relu
-    ).apply(network)
+    )(inputs)
 
     network = tf.keras.layers.Conv2D(
       filters=32,
@@ -63,7 +35,7 @@ def network(input_layer, angles, training):
       activation=tf.nn.leaky_relu
     ).apply(network)
 
-    network = tf.keras.layers.Conv2D(
+    output = tf.keras.layers.Conv2D(
       filters=32,
       kernel_size=[10, 10],
       dilation_rate=1,
@@ -71,15 +43,76 @@ def network(input_layer, angles, training):
       activation=tf.nn.leaky_relu
     ).apply(network)
 
+    return tf.keras.Model(inputs=inputs, outputs=output)
+
+
+def model(input_shape, angles):
+  """Defines model.
+
+  Args:
+    input_layer: `tf.Tensor` of shape `height, width, `
+  """
+  with tf.name_scope("angle_first_model"):
+    inputs = tf.keras.Input(shape=input_shape)
+
+    network = tf.keras.layers.Lambda(
+      array_utils.reduce_split_tensor, arguments={'axis': 1}).apply(inputs)
+
+    angle_module = AngleModule(input_shape=input_shape[1:])
+
+    # First pipe each input through an `angle_module`.
+    angle_output = [angle_module(input) for input in network]
+
+    # Rotate output so all features are co-registered.
+    angle_centered = [
+      tf.keras.layers.Lambda(tf.contrib.image.rotate, arguments={
+        'angles': angle, 'interpolation': "BILINEAR"})(tensor)
+                      for tensor, angle in zip(angle_output, angles)]
+
+    # Stack output of angle modules along `filter` dimension.
+    network = tf.keras.layers.Concatenate()(angle_centered)
+
     network = tf.keras.layers.Conv2D(
-      filters=1,
-      kernel_size=[10, 10],
+      filters=32,
+      kernel_size=[3, 3],
       dilation_rate=1,
       padding="same",
       activation=tf.nn.leaky_relu
     ).apply(network)
 
-  return network
+    network = tf.keras.layers.Conv2D(
+      filters=32,
+      kernel_size=[3, 3],
+      dilation_rate=3,
+      padding="same",
+      activation=tf.nn.leaky_relu
+    ).apply(network)
+
+    network = tf.keras.layers.Conv2D(
+      filters=32,
+      kernel_size=[3, 3],
+      dilation_rate=2,
+      padding="same",
+      activation=tf.nn.leaky_relu
+    ).apply(network)
+
+    network = tf.keras.layers.Conv2D(
+      filters=32,
+      kernel_size=[3, 3],
+      dilation_rate=4,
+      padding="same",
+      activation=tf.nn.leaky_relu
+    ).apply(network)
+
+    output = tf.keras.layers.Conv2D(
+      filters=1,
+      kernel_size=[5, 5],
+      dilation_rate=1,
+      padding="same",
+      activation=tf.nn.leaky_relu
+    ).apply(network)
+
+    return tf.keras.Model(inputs=inputs, outputs=output)
 
 
 def model_fn(features, labels, mode, params):
@@ -104,14 +137,8 @@ def model_fn(features, labels, mode, params):
   logging.debug("`distributions` tensor recieved in model is "
                 "{}".format(distributions))
 
-  if mode == tf.estimator.ModeKeys.TRAIN:
-    training = True
-  else:
-    training = False
-
   # Run observations through CNN.
-  predictions = network(
-    observations, params['observation_spec'].angles, training)[..., 0]
+  predictions = model(observations.shape[1:], params["observation_spec"].angles)(observations)[..., 0]
 
   # Loss. Compare output of nn to original images.
   with tf.variable_scope("loss"):

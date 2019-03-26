@@ -30,7 +30,7 @@ def save_input(
     for _ in range(iteration_count):
       sess.run(output)
       logging.debug("Called dataset.")
-    rate = (time.time() - time_start) / iteration_count
+    rate = iteration_count / (time.time() - time_start)
     logging.info("{name} Dataset produces output at rate {rate} examples/sec"
                  "".format(name=dataset_name, rate=rate))
 
@@ -42,7 +42,7 @@ def save_input(
       name=dataset_name, shape=test_distribution.shape))
 
     fig, ax = plt.subplots(1, 2)
-    ax[0].imshow(test_observation[0, ..., 0])
+    ax[0].imshow(test_observation[0, -1, ..., 0])
     ax[0].set_title("Observation")
     ax[1].imshow(test_distribution[0])
     ax[1].set_title("Distribution")

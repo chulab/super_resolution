@@ -4,6 +4,7 @@ import unittest
 from parameterized import parameterized
 
 import numpy as np
+import tensorflow as tf
 
 from utils import array_utils
 
@@ -34,3 +35,15 @@ class arrayUtilsTest(unittest.TestCase):
     splits = array_utils.reduce_split(array, axis)
     for i in range(array.shape[axis]):
       np.testing.assert_equal(splits[i], array.take(i, axis))
+
+  @parameterized.expand([
+    ((41, 23, 4), 0),
+    ((12, 14), 1),
+    ((23, 41, 33), 1),
+  ])
+  def testArraySplitTensor(self, shape, axis):
+    array = np.random.rand(*shape)
+    splits = array_utils.reduce_split_tensor(tf.convert_to_tensor(array), axis)
+    with tf.Session() as sess:
+      for i in range(array.shape[axis]):
+        np.testing.assert_equal(sess.run(splits[i]), array.take(i, axis))
