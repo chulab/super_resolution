@@ -4,15 +4,18 @@ import logging
 
 import tensorflow as tf
 
+from simulation import tensor_utils
 
-def make_hparams() -> tf.contrib.training.HParams:
+
+def make_hparams() -> dict:
   """Create a HParams object specifying model hyperparameters."""
-  return tf.contrib.training.HParams(
-    learning_rate=0.1,
-  )
+  return {
+    'learning_rate': 0.1,
+    'observation_spec': None,
+  }
 
 
-def network(input_layer, training):
+def network(input_layer, angles, training):
   """Defines network.
 
   Args:
@@ -22,7 +25,18 @@ def network(input_layer, training):
       test mode. (Drop out is turned on during training but off during
       eval.)
   """
-  input_layer.shape.assert_is_compatible_with([None, None, None, None])
+  input_layer.shape.assert_is_compatible_with(
+    [None, len(angles), None, None, None])
+
+  network = tensor_utils.rotate_tensor(
+    input_layer,
+    tf.convert_to_tensor([-1 * angle for angle in angles]),
+    1
+  )
+
+  network = tensor_utils.combine_batch_into_channels(network, 0)[0]
+
+  logging.info("Before feeding model {}".format(network))
 
   with tf.variable_scope("Model"):
     network = tf.keras.layers.Conv2D(
@@ -31,7 +45,7 @@ def network(input_layer, training):
       dilation_rate=1,
       padding="same",
       activation=tf.nn.leaky_relu
-    ).apply(input_layer)
+    ).apply(network)
 
     network = tf.keras.layers.Conv2D(
       filters=32,
@@ -96,7 +110,8 @@ def model_fn(features, labels, mode, params):
     training = False
 
   # Run observations through CNN.
-  predictions = network(observations, training)[..., 0]
+  predictions = network(
+    observations, params['observation_spec'].angles, training)[..., 0]
 
   # Loss. Compare output of nn to original images.
   with tf.variable_scope("loss"):
@@ -107,7 +122,7 @@ def model_fn(features, labels, mode, params):
     tf.summary.scalar("loss", loss)
 
   with tf.variable_scope("optimizer"):
-    optimizer = tf.train.AdamOptimizer(params.learning_rate)
+    optimizer = tf.train.AdamOptimizer(params["learning_rate"])
     train_op = optimizer.minimize(
       loss, global_step=tf.train.get_global_step())
 
@@ -130,7 +145,7 @@ def model_fn(features, labels, mode, params):
     }
 
     # Add image summaries.
-    tf.summary.image("observation", observations[..., 0, tf.newaxis], 1)
+    tf.summary.image("observation", observations[:, 0, ..., 0, tf.newaxis], 1)
     tf.summary.image("distributions", distributions[..., tf.newaxis], 1)
     tf.summary.image("predictions", predictions[..., tf.newaxis], 1)
 

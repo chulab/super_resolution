@@ -19,7 +19,12 @@ from preprocessing import test_input_pipeline
 
 from simulation import create_observation_spec
 
-from trainer import model
+from trainer import model as straight_model
+from trainer import angle_first_model
+
+
+_STRAIGHT="STRAIGHT"
+_ANGLE_FIRST="ANGLE_FIRST"
 
 
 def train_and_evaluate(
@@ -29,6 +34,7 @@ def train_and_evaluate(
     eval_dataset_directory,
     train_parse_fn,
     eval_parse_fn,
+    estimator_fn,
     interleave_cycle_length,
     shuffle_buffer_size,
     batch_size,
@@ -81,7 +87,7 @@ def train_and_evaluate(
   run_config = tf.estimator.RunConfig()
   run_config = run_config.replace(model_dir=output_directory)
 
-  estimator = model.build_estimator(
+  estimator = estimator_fn(
     config=run_config,
     params=model_hparams,
   )
@@ -159,6 +165,13 @@ def parse_args():
     dest='observation_spec_path',
     type=str,
     required=True,
+  )
+
+  parser.add_argument(
+    '--model_type',
+    dest='model_type',
+    type=str,
+    default=_STRAIGHT,
   )
 
   parser.add_argument(
@@ -255,8 +268,18 @@ def main():
   ).parse
   logging.info("Initialized `eval_parse_fn`.")
 
+  if args.model_type==_STRAIGHT:
+    model=straight_model
+  elif args.model_type==_ANGLE_FIRST:
+    model=angle_first_model
+  else:
+    raise ValueError('Not a valid model type. Got {}'.format(args.model_type))
+
+  estimator_fn = model.build_estimator
   hparams = model.make_hparams()
-  hparams.learning_rate = args.learning_rate
+
+  hparams['learning_rate'] = args.learning_rate
+  hparams['observation_spec'] = observation_spec
 
   train_and_evaluate(
     train_steps=args.train_steps,
@@ -265,6 +288,7 @@ def main():
     eval_dataset_directory=args.eval_dataset_directory,
     train_parse_fn=train_parse_fn,
     eval_parse_fn=eval_parse_fn,
+    estimator_fn=estimator_fn,
     interleave_cycle_length=args.interleave_cycle_length,
     shuffle_buffer_size=args.shuffle_buffer_size,
     batch_size=args.batch_size,
