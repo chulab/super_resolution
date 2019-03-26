@@ -8,7 +8,7 @@
 sbatch_setup_commands="# Additional setup commands."
 
 ## JOB SPECIFICATIONS.
-job_name=distribution_generation
+job_name=distribution_generationa
 now=$(date +"%FT%H%M%S")
 job_directory=${PI_HOME}/job_logs/${now}_${job_name}
 
