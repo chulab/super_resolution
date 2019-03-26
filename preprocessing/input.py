@@ -1,6 +1,7 @@
 """Constructs input function for training."""
 
 import logging
+import os
 
 from typing import Callable
 
@@ -41,7 +42,7 @@ def input_fn(
     tf.data.Datset with output `features_labels.`
   """
   with tf.variable_scope("Input"):
-    file_pattern = dataset_directory + file_signature
+    file_pattern = os.path.join(dataset_directory, file_signature)
     logging.info("Looking for files with glob {}".format(file_pattern))
 
     # Makes `Dataset` of file names.
