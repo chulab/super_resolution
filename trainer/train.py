@@ -67,9 +67,9 @@ def train_and_evaluate(
       num_parallel_reads=1,
     )
 
-  test_input_pipeline.save_input(train_input(), "train", output_directory)
-  test_input_pipeline.save_input(eval_input(), "eval", output_directory)
-  logging.info("Saved input examples.")
+  # test_input_pipeline.save_input(train_input(), "train", output_directory)
+  # test_input_pipeline.save_input(eval_input(), "eval", output_directory)
+  # logging.info("Saved input examples.")
 
   logging.info("Defining `train_spec`.")
   train_spec = tf.estimator.TrainSpec(
@@ -82,6 +82,9 @@ def train_and_evaluate(
     input_fn=eval_input,
     steps=100,
   )
+
+  tf_config = os.environ.get('TF_CONFIG')
+  logging.info("TF_CONFIG {}".format(tf_config))
 
   # Load `RunConfig`.
   run_config = tf.estimator.RunConfig()
@@ -98,8 +101,7 @@ def train_and_evaluate(
 def parse_args():
   parser = argparse.ArgumentParser()
 
-  parser.add_argument('-o', '--output_dir',
-                      dest='output_dir',
+  parser.add_argument('--job-dir',
                       help='Path to save output of model including checkpoints.',
                       type=str,
                       required=True)
@@ -283,7 +285,7 @@ def main():
 
   train_and_evaluate(
     train_steps=args.train_steps,
-    output_directory=args.output_dir,
+    output_directory=args.job_dir,
     train_dataset_directory=args.train_dataset_directory,
     eval_dataset_directory=args.eval_dataset_directory,
     train_parse_fn=train_parse_fn,
