@@ -140,6 +140,18 @@ def model_fn(features, labels, mode, params):
   # Run observations through CNN.
   predictions = model(observations.shape[1:], params["observation_spec"].angles)(observations)[..., 0]
 
+  with tf.variable_scope("predictions"):
+    predict_output = {
+      "predictions": predictions,
+      "observations": observations,
+    }
+
+  if mode == tf.estimator.ModeKeys.PREDICT:
+    return tf.estimator.EstimatorSpec(
+      mode=mode,
+      predictions=predictions
+    )
+
   # Loss. Compare output of nn to original images.
   with tf.variable_scope("loss"):
     l2_loss = tf.reduce_sum((predictions - distributions) ** 2)
@@ -162,13 +174,6 @@ def model_fn(features, labels, mode, params):
 
     eval_metric_ops = {
       "rms_error": rms_error,
-    }
-
-  with tf.variable_scope("predictions"):
-    predict_output = {
-      "predictions": predictions,
-      "observations": observations,
-      "distributions": distributions,
     }
 
     # Add image summaries.

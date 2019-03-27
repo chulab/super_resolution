@@ -13,9 +13,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import tensorflow as tf
 
+from analysis import plot_utils
+
 from preprocessing import input
 from preprocessing import parser
-from preprocessing import test_input_pipeline
 
 from simulation import create_observation_spec
 
@@ -26,84 +27,18 @@ from trainer import angle_first_model
 _STRAIGHT="STRAIGHT"
 _ANGLE_FIRST="ANGLE_FIRST"
 
-
-def train_and_evaluate(
-    train_steps,
-    output_directory,
-    train_dataset_directory,
-    eval_dataset_directory,
-    train_parse_fn,
-    eval_parse_fn,
-    estimator_fn,
-    interleave_cycle_length,
-    shuffle_buffer_size,
-    batch_size,
-    num_parallel_reads,
-    model_hparams,
-):
-  """Run the training and evaluate using the high level API."""
-
-  def train_input():
-    """Input function returning batches from the training data set.
-    """
-    return input.input_fn(
-      train_dataset_directory,
-      train_parse_fn,
-      interleave_cycle_length,
-      shuffle_buffer_size,
-      batch_size,
-      num_parallel_reads,
-    )
-
-  def eval_input():
-    """Input function returning batches from the evaluation data set.
-    """
-    return input.input_fn(
-      eval_dataset_directory,
-      eval_parse_fn,
-      interleave_cycle_length,
-      shuffle_buffer_size=1, # Do not shuffle eval data.
-      batch_size=1,
-      num_parallel_reads=1,
-    )
-
-  tf_config = os.environ.get('TF_CONFIG')
-  logging.info("TF_CONFIG {}".format(tf_config))
-
-
-  # test_input_pipeline.save_input(train_input(), "train", output_directory)
-  # test_input_pipeline.save_input(eval_input(), "eval", output_directory)
-  # logging.info("Saved input examples.")
-
-  logging.info("Defining `train_spec`.")
-  train_spec = tf.estimator.TrainSpec(
-    input_fn=train_input,
-    max_steps=train_steps,
-  )
-
-  logging.info("Defining `eval_spec`.")
-  eval_spec = tf.estimator.EvalSpec(
-    input_fn=eval_input,
-    steps=100,
-  )
-
-  # Load `RunConfig`.
-  run_config = tf.estimator.RunConfig()
-  run_config = run_config.replace(model_dir=output_directory)
-
-  estimator = estimator_fn(
-    config=run_config,
-    params=model_hparams,
-  )
-
-  tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
-
-
 def parse_args():
   parser = argparse.ArgumentParser()
 
-  parser.add_argument('--job-dir',
-                      help='Path to save output of model including checkpoints.',
+  parser.add_argument('-o', '--output_dir',
+                      dest='output_dir',
+                      help='Path to save output.',
+                      type=str,
+                      required=True)
+
+  parser.add_argument('--model_dir',
+                      dest='model_dir',
+                      help='Path to model checkpoints.',
                       type=str,
                       required=True)
 
@@ -143,22 +78,8 @@ def parse_args():
   )
 
   parser.add_argument(
-    '--train_steps',
-    dest='train_steps',
-    type=int,
-    required=True,
-  )
-
-  parser.add_argument(
-    '--train_dataset_directory',
-    dest='train_dataset_directory',
-    type=str,
-    required=True,
-  )
-
-  parser.add_argument(
-    '--eval_dataset_directory',
-    dest='eval_dataset_directory',
+    '--predict_dataset_directory',
+    dest='predict_dataset_directory',
     type=str,
     required=True,
   )
@@ -174,7 +95,7 @@ def parse_args():
     '--model_type',
     dest='model_type',
     type=str,
-    default=_STRAIGHT,
+    required=True
   )
 
   parser.add_argument(
@@ -209,13 +130,8 @@ def parse_args():
     required=False,
   )
 
-  parser.add_argument(
-    '--learning_rate',
-    dest='learning_rate',
-    type=float,
-    default=.001,
-    required=False,
-  )
+  parser.add_argument('--plot_all_observations', dest='plot_all_observations', action='store_true')
+  parser.set_defaults(plot_all_observations=False)
 
   args, _ = parser.parse_known_args()
 
@@ -249,7 +165,7 @@ def main():
     args.observation_spec_path
   )
 
-  train_parse_fn = parser.Parser(
+  predict_parse_fn = parser.Parser(
     observation_spec=observation_spec,
     reverse_rotation=True,
     distribution_blur_sigma=args.distribution_blur_sigma,
@@ -258,18 +174,7 @@ def main():
     observation_downsample_size=args.observation_downsample_size,
     example_size=args.example_size,
   ).parse
-  logging.info("Initialized `train_parse_fn`.")
-
-  eval_parse_fn = parser.Parser(
-    observation_spec=observation_spec,
-    reverse_rotation=True,
-    distribution_blur_sigma=args.distribution_blur_sigma,
-    observation_blur_sigma=args.observation_blur_sigma,
-    distribution_downsample_size=args.distribution_downsample_size,
-    observation_downsample_size=args.observation_downsample_size,
-    example_size=args.example_size,
-  ).parse
-  logging.info("Initialized `eval_parse_fn`.")
+  logging.info("Initialized `predict_parse_fn`.")
 
   if args.model_type==_STRAIGHT:
     model=straight_model
@@ -278,26 +183,66 @@ def main():
   else:
     raise ValueError('Not a valid model type. Got {}'.format(args.model_type))
 
-  estimator_fn = model.build_estimator
   hparams = model.make_hparams()
-
-  hparams['learning_rate'] = args.learning_rate
   hparams['observation_spec'] = observation_spec
 
-  train_and_evaluate(
-    train_steps=args.train_steps,
-    output_directory=args.job_dir,
-    train_dataset_directory=args.train_dataset_directory,
-    eval_dataset_directory=args.eval_dataset_directory,
-    train_parse_fn=train_parse_fn,
-    eval_parse_fn=eval_parse_fn,
-    estimator_fn=estimator_fn,
-    interleave_cycle_length=args.interleave_cycle_length,
-    shuffle_buffer_size=args.shuffle_buffer_size,
-    batch_size=args.batch_size,
-    num_parallel_reads=args.num_parallel_reads,
-    model_hparams=hparams,
+  # Set up input
+  predict_dataset = input.input_fn(
+    args.predict_dataset_directory,
+    predict_parse_fn,
+    1,
+    1,
+    1,
+    1,
   )
+  iterator = predict_dataset.make_one_shot_iterator()
+  observations, distribution = iterator.get_next()
+
+  # Rebuild the model
+  predictions = model.model_fn(
+    observations, distribution, tf.estimator.ModeKeys.EVAL, hparams).predictions
+
+  # Manually load the latest checkpoint
+  saver = tf.train.Saver()
+  with tf.Session() as sess:
+    ckpt = tf.train.get_checkpoint_state(args.model_dir)
+    saver.restore(sess, ckpt.model_checkpoint_path)
+
+    # Loop through the batches and store predictions and labels
+    output = []
+    for i in range(1):
+      try:
+        preds_eval, dist_eval = sess.run([predictions, distribution])
+        # Add distributions to `predictions`.
+        preds_eval.update({'distribution': dist_eval})
+        output.append(preds_eval)
+      except tf.errors.OutOfRangeError:
+        break
+
+  # Set up output dir.
+  output_dir = os.path.join(args.output_dir, 'prediction')
+  os.makedirs(output_dir, exist_ok=True)
+
+  true_grid_dimension = observation_spec.grid_dimension * \
+                        args.example_size[0] / args.distribution_downsample_size[0]
+
+  logging.info("true_grid_dimension {}".format(true_grid_dimension))
+
+  plot_utils.plot_observation_prediction__distribution(
+    output[0]['observations'][0, 0, ..., 0],
+    output[0]['distribution'][0],
+    output[0]['predictions'][0],
+    true_grid_dimension,
+    output_dir)
+
+
+  if args.plot_all_observations:
+    plot_utils.plot_observation_example(
+      output[0]['observations'][0],
+      observation_spec,
+      output_dir,
+      true_grid_dimension,
+    )
 
 
 if __name__ == "__main__":
