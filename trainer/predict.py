@@ -130,14 +130,6 @@ def parse_args():
     required=False,
   )
 
-  parser.add_argument(
-    '--learning_rate',
-    dest='learning_rate',
-    type=float,
-    default=.001,
-    required=False,
-  )
-
   parser.add_argument('--plot_all_observations', dest='plot_all_observations', action='store_true')
   parser.set_defaults(plot_all_observations=False)
 
@@ -191,10 +183,7 @@ def main():
   else:
     raise ValueError('Not a valid model type. Got {}'.format(args.model_type))
 
-  estimator_fn = model.build_estimator
   hparams = model.make_hparams()
-
-  hparams['learning_rate'] = args.learning_rate
   hparams['observation_spec'] = observation_spec
 
   # Set up input
@@ -234,17 +223,25 @@ def main():
   output_dir = os.path.join(args.output_dir, 'prediction')
   os.makedirs(output_dir, exist_ok=True)
 
+  true_grid_dimension = observation_spec.grid_dimension * \
+                        args.example_size[0] / args.distribution_downsample_size[0]
+
+  logging.info("true_grid_dimension {}".format(true_grid_dimension))
+
   plot_utils.plot_observation_prediction__distribution(
     output[0]['observations'][0, 0, ..., 0],
     output[0]['distribution'][0],
     output[0]['predictions'][0],
-    observation_spec.grid_dimension,
+    true_grid_dimension,
     output_dir)
 
 
   if args.plot_all_observations:
     plot_utils.plot_observation_example(
-      output[0]['observations'][0], observation_spec, output_dir,
+      output[0]['observations'][0],
+      observation_spec,
+      output_dir,
+      true_grid_dimension,
     )
 
 
