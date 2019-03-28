@@ -75,18 +75,6 @@ def train_and_evaluate(
   # test_input_pipeline.save_input(eval_input(), "eval", output_directory)
   # logging.info("Saved input examples.")
 
-  logging.info("Defining `train_spec`.")
-  train_spec = tf.estimator.TrainSpec(
-    input_fn=train_input,
-    max_steps=train_steps,
-  )
-
-  logging.info("Defining `eval_spec`.")
-  eval_spec = tf.estimator.EvalSpec(
-    input_fn=eval_input,
-    steps=100,
-  )
-
   # Load `RunConfig`.
   run_config = tf.estimator.RunConfig()
   run_config = run_config.replace(model_dir=output_directory)
@@ -95,6 +83,27 @@ def train_and_evaluate(
     config=run_config,
     params=model_hparams,
   )
+
+  hook = tf.train.ProfilerHook(
+    save_steps=100,
+    output_dir=output_directory,
+    show_memory=True
+  )
+
+  logging.info("Defining `train_spec`.")
+  train_spec = tf.estimator.TrainSpec(
+    input_fn=train_input,
+    max_steps=train_steps,
+    hooks=[hook]
+  )
+
+  logging.info("Defining `eval_spec`.")
+  eval_spec = tf.estimator.EvalSpec(
+    input_fn=eval_input,
+    steps=100,
+  )
+
+
 
   tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 
@@ -211,11 +220,13 @@ def parse_args():
 
   parser.add_argument(
     '--learning_rate',
-    dest='learning_rate',
     type=float,
     default=.001,
     required=False,
   )
+
+  parser.add_argument('--cloud_train', action='store_true')
+  parser.set_defaults(cloud_train=False)
 
   args, _ = parser.parse_known_args()
 
@@ -241,12 +252,13 @@ def _set_up_logging():
 
 def main():
 
-  _set_up_logging()
-
   args = parse_args()
 
+  if not args.cloud_train:
+    _set_up_logging()
+
   observation_spec = create_observation_spec.load_observation_spec(
-    args.observation_spec_path
+    args.observation_spec_path, args.cloud_train
   )
 
   train_parse_fn = parser.Parser(
