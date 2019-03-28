@@ -58,16 +58,23 @@ def _construct_example(
     raise ValueError("`observation` must have dtype `float32` got {}"
                      "".format(observation.dtype))
 
-  distribution = tf.make_tensor_proto(distribution)
-  observation = tf.make_tensor_proto(observation)
+  distribution_proto = tf.make_tensor_proto(distribution)
+  observation_proto = tf.make_tensor_proto(observation)
 
   return tf.train.Example(features=tf.train.Features(feature={
-    'distribution': _bytes_feature(distribution.SerializeToString()),
-    'observation': _bytes_feature(observation.SerializeToString()),
+    'distribution': _bytes_feature(distribution_proto.SerializeToString()),
+    'observation': _bytes_feature(observation_proto.SerializeToString()),
+    'info/distribution/height': _int64_feature(distribution.shape[0]),
+    'info/distribution/width': _int64_feature(distribution.shape[1]),
+    'info/observation/height': _int64_feature(observation.shape[1]),
+    'info/observation/width': _int64_feature(observation.shape[2]),
   }))
 
 
-def _parse_example(example_serialized: tf.Tensor):
+def _parse_example(
+    example_serialized: tf.Tensor,
+    includes_shape=False
+):
   """Parses a `tf.train.Example` proto containing distribution and observation.
 
   This function parses an example produced by `_construct_example`.
@@ -75,6 +82,9 @@ def _parse_example(example_serialized: tf.Tensor):
   Args:
     example_serialized: `tf.Tensor` containing a serialized `Example` protocol
       buffer.
+    includes_shape: Bool. Determines if there is `shape` information stored
+    with tensors. For backward comatibility with an earlier version of
+    `_construct_example` which did not store shape.
 
   Returns:
     distribution: See `_construct_example`.
@@ -84,10 +94,24 @@ def _parse_example(example_serialized: tf.Tensor):
     'distribution': tf.FixedLenFeature([], tf.string),
     'observation': tf.FixedLenFeature([], tf.string)
   }
+  if includes_shape:
+    feature_map.update({
+        'info/distribution/height': tf.FixedLenFeature([], tf.int64),
+        'info/distribution/width': tf.FixedLenFeature([], tf.int64),
+        'info/observation/height': tf.FixedLenFeature([], tf.int64),
+        'info/observation/width': tf.FixedLenFeature([], tf.int64)
+      })
 
   features = tf.parse_single_example(example_serialized, feature_map)
 
   distribution = tf.io.parse_tensor(features['distribution'], tf.float32)
   observation = tf.io.parse_tensor(features['observation'], tf.float32)
+
+  if includes_shape:
+    distribution_shape = (features['info/distribution/height'],
+                          features['info/distribution/width'])
+    observation_shape = (features['info/observation/height'],
+                          features['info/observation/width'])
+    return distribution, observation, distribution_shape, observation_shape
 
   return distribution, observation
