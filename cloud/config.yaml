@@ -1,0 +1,6 @@
+# Configuration for google cloud ml.
+
+trainingInput:
+  scaleTier: BASIC_GPU
+  pythonVersion: '3.5'
+  runtimeVersion: '1.13'

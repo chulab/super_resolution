@@ -84,8 +84,15 @@ fi
 ## CHECK ARGUMENTS.
 if [ ! -d ${local_dir} ]; then
   # If directory does not exist, then creates it.
-  echo "ERROR: `output_dir` does not exist. Got ${local_dir}"
+  echo "ERROR: `local_dir` does not exist. Got ${local_dir}"
   exit 1
+fi
+
+## SET UP JOB DIRECTORIES.
+if [ ! -d ${job_directory} ]; then
+  # If directory does not exist, then creates it.
+  echo "Job directory does not exist. Making: ${job_directory}"
+  mkdir -p ${job_directory}
 fi
 
 export JOB_DIRECTORY=${job_directory}
