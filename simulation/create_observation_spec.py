@@ -10,6 +10,9 @@ import json
 import os
 import sys
 
+from tensorflow.python.lib.io import file_io
+
+
 # Add `super_resolution` package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -28,19 +31,24 @@ def save_observation_spec(
 
 
 def load_observation_spec(
-    file_path: str
+    file_path: str,
+    cloud_mode=False,
 ):
   """Loads `ObservationSpec` from file path."""
-  with open(file_path, 'r') as f:
-    d = json.load(f)
+  if cloud_mode:
+    with file_io.FileIO(file_path, mode='w+') as f:
+      d = json.load(f)
+  else:
+    with open(file_path, 'r') as f:
+      d = json.load(f)
 
-    return defs.ObservationSpec(
-      grid_dimension=d['grid_dimension'],
-      angles=d['angles'],
-      psf_descriptions=[
-        defs.PsfDescription(*description) for description
-        in d['psf_descriptions']]
-    )
+  return defs.ObservationSpec(
+    grid_dimension=d['grid_dimension'],
+    angles=d['angles'],
+    psf_descriptions=[
+      defs.PsfDescription(*description) for description
+      in d['psf_descriptions']]
+  )
 
 
 def _generate_psf_description(frequencies, frequency_sigma, modes,

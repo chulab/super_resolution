@@ -132,6 +132,11 @@ class CreateObservationSpecTest(unittest.TestCase):
     loaded_spec = create_observation_spec.load_observation_spec(file)
     self.assertSequenceEqual(true_spec, loaded_spec)
 
+  def testLoadGoogleCloud(self):
+    create_observation_spec.load_observation_spec(
+      'gs://chu_super_resolution_data/simulation/circle_3_18/observation_spec.json',
+    True,
+    )
 
 
 if __name__ == "__main__":
