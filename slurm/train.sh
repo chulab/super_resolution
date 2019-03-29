@@ -32,6 +32,7 @@ observation_spec_path="simulation/test_data/test_observation_spec.json"
 learning_rate=".001"
 prefetch=1
 num_parallel_reads=1
+batch_size=1
 
 ## GET INPUTS.
 POSITIONAL=()
@@ -235,6 +236,16 @@ case $key in
         fi
     shift
     ;;
+    --batch_size)
+        if [ ! -z "$2" ]; then
+            batch_size=$2
+            shift
+        else
+            echo 'ERROR: "--batch_size" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
 esac
 done
 
@@ -315,13 +326,13 @@ python3.6 $PI_HOME/super_resolution/super_resolution/trainer/train.py \
 --observation_downsample_size ${observation_downsample_size} \
 --example_size ${example_size} \
 --train_steps ${train_steps} \
+--batch_size ${batch_size} \
 --train_dataset_directory ${train_dataset_directory} \
 --eval_dataset_directory ${eval_dataset_directory} \
 --observation_spec_path ${observation_spec_path} \
 --learning_rate ${learning_rate} \
 --prefetch ${prefetch} \
 --num_parallel_reads ${num_parallel_reads} \
---slurm_train 
 
 EOT
 
