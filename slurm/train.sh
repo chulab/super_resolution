@@ -30,7 +30,8 @@ train_dataset_directory="simulation/test_data/"
 eval_dataset_directory="simulation/test_data/"
 observation_spec_path="simulation/test_data/test_observation_spec.json"
 learning_rate=".001"
-
+prefetch=1
+num_parallel_reads=1
 
 ## GET INPUTS.
 POSITIONAL=()
@@ -214,6 +215,26 @@ case $key in
         fi
     shift
     ;;
+    --prefetch)
+        if [ ! -z "$2" ]; then
+            prefetch=$2
+            shift
+        else
+            echo 'ERROR: "--prefetch" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
+    --num_parallel_reads)
+        if [ ! -z "$2" ]; then
+            num_parallel_reads=$2
+            shift
+        else
+            echo 'ERROR: "--num_parallel_reads" requires non-empty option.'
+            exit 1
+        fi
+    shift
+    ;;
 esac
 done
 
@@ -279,11 +300,11 @@ SBATCH_FILE="${job_directory}/sbatch_file.txt"
 #SBATCH --partition=${partition}
 #SBATCH --time=${time}
 #SBATCH --cpus-per-task=${cpu}
-#SBATCH --mem-per-cpu=4G
 
 $sbatch_setup_commands
 
 ml py-scipy/1.1.0_py36
+ml py-tensorflow/1.12.0_py36
 
 python3.6 $PI_HOME/super_resolution/super_resolution/trainer/train.py \
 --job-dir ${output_dir} \
@@ -298,6 +319,9 @@ python3.6 $PI_HOME/super_resolution/super_resolution/trainer/train.py \
 --eval_dataset_directory ${eval_dataset_directory} \
 --observation_spec_path ${observation_spec_path} \
 --learning_rate ${learning_rate}
+--prefetch ${prefetch}
+--num_parallel_reads ${num_parallel_reads}
+--slurm_train
 
 EOT
 
