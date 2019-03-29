@@ -318,10 +318,10 @@ python3.6 $PI_HOME/super_resolution/super_resolution/trainer/train.py \
 --train_dataset_directory ${train_dataset_directory} \
 --eval_dataset_directory ${eval_dataset_directory} \
 --observation_spec_path ${observation_spec_path} \
---learning_rate ${learning_rate}
---prefetch ${prefetch}
---num_parallel_reads ${num_parallel_reads}
---slurm_train
+--learning_rate ${learning_rate} \
+--prefetch ${prefetch} \
+--num_parallel_reads ${num_parallel_reads} \
+--slurm_train 
 
 EOT
 
