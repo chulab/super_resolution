@@ -21,7 +21,7 @@ from simulation import create_observation_spec
 
 from trainer import model as straight_model
 from trainer import angle_first_model
-
+from trainer import slurm_cluster
 
 _STRAIGHT="STRAIGHT"
 _ANGLE_FIRST="ANGLE_FIRST"
@@ -39,7 +39,9 @@ def train_and_evaluate(
     shuffle_buffer_size,
     batch_size,
     num_parallel_reads,
+    prefetch,
     model_hparams,
+    cluster_spec=None,
 ):
   """Run the training and evaluate using the high level API."""
 
@@ -53,6 +55,7 @@ def train_and_evaluate(
       shuffle_buffer_size,
       batch_size,
       num_parallel_reads,
+      prefetch,
     )
 
   def eval_input():
@@ -65,6 +68,7 @@ def train_and_evaluate(
       shuffle_buffer_size=1, # Do not shuffle eval data.
       batch_size=1,
       num_parallel_reads=1,
+      prefetch=prefetch,
     )
 
   tf_config = os.environ.get('TF_CONFIG')
@@ -77,7 +81,16 @@ def train_and_evaluate(
 
   # Load `RunConfig`.
   run_config = tf.estimator.RunConfig()
-  run_config = run_config.replace(model_dir=output_directory)
+  run_config = run_config.replace(
+    model_dir=output_directory,
+    log_step_count_steps=1,
+  )
+
+  if cluster_spec:
+    logging.info("Replacing cluster spec in `run_config`.")
+    run_config.replace(
+      cluster_spec=cluster_spec
+    )
 
   estimator = estimator_fn(
     config=run_config,
@@ -85,7 +98,7 @@ def train_and_evaluate(
   )
 
   hook = tf.train.ProfilerHook(
-    save_steps=100,
+    save_steps=1,
     output_dir=output_directory,
     show_memory=True
   )
@@ -212,7 +225,13 @@ def parse_args():
 
   parser.add_argument(
     '--num_parallel_reads',
-    dest='num_parallel_reads',
+    type=int,
+    default=1,
+    required=False,
+  )
+
+  parser.add_argument(
+    '--prefetch',
     type=int,
     default=1,
     required=False,
@@ -227,6 +246,9 @@ def parse_args():
 
   parser.add_argument('--cloud_train', action='store_true')
   parser.set_defaults(cloud_train=False)
+
+  parser.add_argument('--slurm_train', action='store_true')
+  parser.set_defaults(slurm_train=False)
 
   args, _ = parser.parse_known_args()
 
@@ -256,6 +278,11 @@ def main():
 
   if not args.cloud_train:
     _set_up_logging()
+
+  if args.slurm_train:
+    cluster_spec = slurm_cluster.get_cluster()
+  else:
+    cluster_spec = None
 
   observation_spec = create_observation_spec.load_observation_spec(
     args.observation_spec_path, args.cloud_train
@@ -308,7 +335,9 @@ def main():
     shuffle_buffer_size=args.shuffle_buffer_size,
     batch_size=args.batch_size,
     num_parallel_reads=args.num_parallel_reads,
+    prefetch=args.prefetch,
     model_hparams=hparams,
+    cluster_spec=cluster_spec
   )
 
 

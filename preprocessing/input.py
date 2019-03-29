@@ -20,6 +20,7 @@ def input_fn(
     shuffle_buffer_size: int=1,
     batch_size: int=1,
     num_parallel_reads: int=1,
+    prefetch: int=None,
     file_signature: str="*.tfrecord"
 ) -> tf.data.Dataset:
   """Returns a dataset for train and eval.
@@ -41,6 +42,9 @@ def input_fn(
   Returns:
     tf.data.Datset with output `features_labels.`
   """
+  if prefetch is None:
+    prefetch = tf.contrib.data.AUTOTUNE
+
   with tf.variable_scope("Input"):
     file_pattern = os.path.join(dataset_directory, file_signature)
     logging.info("Looking for files with glob {}".format(file_pattern))
@@ -48,7 +52,8 @@ def input_fn(
     # Makes `Dataset` of file names.
     files = tf.data.Dataset.list_files(file_pattern, shuffle=True)
 
-    files = files.repeat()
+    # Repeat and shuffle.
+    files = files.apply(tf.data.experimental.shuffle_and_repeat(20))
 
     # Generates `Dataset` from each file and interleaves.
     dataset = files.interleave(
@@ -66,6 +71,6 @@ def input_fn(
     # Batch.
     dataset = dataset.batch(batch_size=batch_size)
 
-    dataset = dataset.prefetch(tf.contrib.data.AUTOTUNE)
+    dataset = dataset.prefetch(prefetch)
 
     return dataset
