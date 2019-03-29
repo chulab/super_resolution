@@ -98,7 +98,7 @@ def train_and_evaluate(
   )
 
   hook = tf.train.ProfilerHook(
-    save_steps=1,
+    save_steps=1000,
     output_dir=output_directory,
     show_memory=True
   )
