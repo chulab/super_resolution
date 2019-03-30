@@ -296,7 +296,7 @@ python3.6 $PI_HOME/super_resolution/super_resolution/trainer/train_res_net.py \
 --hparams ${hparams} \
 --distribution_blur_sigma ${distribution_blur_sigma} \
 --observation_blur_sigma ${observation_blur_sigma} \
---example_shape ${example_shape} \
+--example_shape ${example_shape}
 EOT
 
 sbatch ${SBATCH_FILE}
