@@ -12,10 +12,10 @@ from simulation import create_observation_spec
 def make_hparams() -> tf.contrib.training.HParams:
   """Create a HParams object specifying model hyperparameters."""
   return tf.contrib.training.HParams(
-    learning_rate=0.1,
+    learning_rate=0.0001,
     observation_spec=None,
     frequency_scales=(1, 2, 4, 8),
-    downsample_factor=3,
+    downsample_factor=2,
     angle_module_blocks=2,
     angle_module_kernel_size=(3,3),
   )
@@ -105,7 +105,7 @@ def frequencyModule(input_shape, scales, **kwargs):
 
     logging.info("net after spatial_block {}".format(net))
 
-    net = tf.keras.layers.SeparableConv2D(8, kernel_size=[3, 3]).apply(net)
+    net = tf.keras.layers.SeparableConv2D(8, kernel_size=[3, 3], padding="same").apply(net)
 
     logging.info("net after channel reduction {}".format(net))
 
@@ -185,7 +185,7 @@ def network(inputs, params):
   logging.info("net after apply angle module {}".format(net))
 
   for i in range(params.downsample_factor):
-    net = upsampleBlock(net, kernel_size=[4, 4], stride=2)
+    net = upsampleBlock(net, kernel_size=[5, 5], stride=2)
 
   logging.info("net after upsample {}".format(net))
 
@@ -302,9 +302,9 @@ def input_fns_(
   # Check for Nan.
   fns.append(preprocess.check_for_nan)
 
-  # Blur
-  fns.append(preprocess.blur(
-    observation_spec, distribution_blur_sigma, observation_blur_sigma))
+  # # Blur
+  # fns.append(preprocess.blur(
+  #   observation_spec, distribution_blur_sigma, observation_blur_sigma))
 
   fns.append(preprocess.swap)
 

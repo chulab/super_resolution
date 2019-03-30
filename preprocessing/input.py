@@ -40,7 +40,7 @@ def input_fn(
   if prefetch is None:
     prefetch = tf.contrib.data.AUTOTUNE
 
-  with tf.variable_scope("Input"):
+  with tf.name_scope("input"):
     file_pattern = os.path.join(dataset_directory, file_signature)
     logging.info("Looking for files with glob {}".format(file_pattern))
 

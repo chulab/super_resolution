@@ -185,3 +185,7 @@ def downsample(distribution_downsample_size, observation_downsample_size):
 
 def swap(distribution, observation):
   return observation, distribution
+
+
+def hilbert():
+  pass

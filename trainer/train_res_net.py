@@ -101,8 +101,6 @@ def train_and_evaluate(
     steps=100,
   )
 
-
-
   tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 
 
@@ -215,6 +213,7 @@ def main():
   )
 
   estimator_fn = model.build_estimator
+
   parse_fns = model.input_fns()
   hparams = model.make_hparams()
   hparams.parse(args.hparams)
