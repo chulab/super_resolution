@@ -105,7 +105,7 @@ def frequencyModule(input_shape, scales, **kwargs):
 
     logging.info("net after spatial_block {}".format(net))
 
-    net = tf.keras.Layers.SeparableConv2D(8, kernel_size=[3, 3]).apply(net)
+    net = tf.keras.layers.SeparableConv2D(8, kernel_size=[3, 3]).apply(net)
 
     logging.info("net after channel reduction {}".format(net))
 
