@@ -15,7 +15,7 @@ def make_hparams() -> tf.contrib.training.HParams:
     learning_rate=0.1,
     observation_spec=None,
     frequency_scales=(1, 2, 4, 8),
-    downsample_factor=2,
+    downsample_factor=3,
     angle_module_blocks=2,
     angle_module_kernel_size=(3,3),
   )
@@ -65,27 +65,17 @@ def spatial_block(x, scales, kernel_size=[3, 3]):
   convs = []
   for scale in scales:
     out = tf.keras.layers.SeparableConv2D(
-      72,
+      8,
       kernel_size=kernel_size,
       dilation_rate=(scale, scale),
       padding="same",
-      activation='relu',
+      activation='none',
     ).apply(x)
     convs.append(
       tf.keras.layers.LeakyReLU(alpha=.1).apply(out)
     )
-  return tf.keras.layers.Concatenate().apply(convs)
-
-
-def frequencyModule(input_shape, scales, **kwargs):
-  """Defines model for operating on frequencies."""
-  with tf.name_scope("frequency_module"):
-    inputs = tf.keras.Input(shape=input_shape)
-    net = inputs
-
-    net = spatial_block(net, scales, **kwargs)
-
-    return tf.keras.Model(inputs=inputs, outputs=net)
+  net = tf.keras.layers.Concatenate().apply(convs)
+  return net
 
 
 def resBlock(inputs, channels, kernel_size, scale=1.):
@@ -104,6 +94,25 @@ def resBlock(inputs, channels, kernel_size, scale=1.):
   ).apply(res)
   res = tf.keras.layers.Lambda(lambda x: x * scale).apply(res)
   return tf.keras.layers.Add().apply([inputs, res])
+
+
+def frequencyModule(input_shape, scales, **kwargs):
+  """Defines model for operating on frequencies."""
+  with tf.name_scope("frequency_module"):
+    inputs = tf.keras.Input(shape=input_shape)
+    net = inputs
+    net = spatial_block(net, scales, **kwargs)
+
+    logging.info("net after spatial_block {}".format(net))
+
+    net = tf.keras.Layers.SeparableConv2D(8, kernel_size=[3, 3]).apply(net)
+
+    logging.info("net after channel reduction {}".format(net))
+
+    for _ in range(3):
+      net = resBlock(net, 8, [3,3], .1)
+
+    return tf.keras.Model(inputs=inputs, outputs=net)
 
 
 def angleModule(input_shape, channels, kernel_size, residual_blocks):
@@ -146,7 +155,6 @@ def network(inputs, params):
   frequency_net = [frequency_module(input) for input in frequency_net]
 
   print("frequency_net {}".format(frequency_net))
-
 
   # Rotate output so all features are co-registered.
   frequency_net = [
