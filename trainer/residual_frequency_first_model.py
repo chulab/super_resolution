@@ -69,7 +69,7 @@ def spatial_block(x, scales, kernel_size=[3, 3]):
       kernel_size=kernel_size,
       dilation_rate=(scale, scale),
       padding="same",
-      activation='none',
+      activation=None,
     ).apply(x)
     convs.append(
       tf.keras.layers.LeakyReLU(alpha=.1).apply(out)
