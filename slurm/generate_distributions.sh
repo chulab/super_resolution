@@ -20,7 +20,6 @@ gpu_count=0
 
 # DISTRIBUTION SIMULATION SPECIFIC ARGUMENTS
 dataset_name=circle_test
-output_directory=${PI_SCRATCH}/super_resolution/data/simulation/${dataset_name}/distributions
 type=CIRCLE
 size=2.5e-3
 grid_dimension=5e-6
@@ -123,6 +122,7 @@ if [ $gpu_count -gt 0 ]; then
 fi
 
 ## CHECK ARGUMENTS.
+output_directory=${PI_SCRATCH}/super_resolution/data/simulation/${dataset_name}/distributions
 if [ ! -d ${output_directory} ]; then
   # If directory does not exist, then creates it.
   echo "ERROR: `output_directory` does not exist. Got ${output_directory}"
