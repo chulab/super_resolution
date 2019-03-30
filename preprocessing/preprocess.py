@@ -7,9 +7,9 @@ import numpy as np
 from scipy import signal
 import tensorflow as tf
 
-
 from simulation import psf_utils
-
+from simulation import tensor_utils
+from training_data import record_utils
 
 def _gaussian_kernel(size: int,
                         std: float,
@@ -88,3 +88,100 @@ class imageBlur(object):
     """Blurs input tensor."""
     return tf.nn.conv2d(
       tensor, self._kernel, strides=[1, 1, 1, 1], padding="SAME")
+
+
+def blur(
+    observation_spec,
+    distribution_blur_sigma,
+    observation_blur_sigma
+):
+  _distribution_blur = imageBlur(
+    grid_pitch=observation_spec.grid_dimension,
+    sigma_blur=distribution_blur_sigma,
+    kernel_size=2 * distribution_blur_sigma,
+    blur_channels=1,
+  )
+  logging.debug("Initialized `_distribution_blur`.")
+
+  _observation_blur = imageBlur(
+    grid_pitch=observation_spec.grid_dimension,
+    sigma_blur=observation_blur_sigma,
+    kernel_size=2 * observation_blur_sigma,
+    blur_channels=len(observation_spec.psf_descriptions) * len(
+      observation_spec.angles)
+  )
+  logging.debug("Initialized `_observation_blur`.")
+
+  def blur_(distribution, observation):
+    distribution = distribution[tf.newaxis, ..., tf.newaxis]
+    observation, transpose, reverse_transpose = \
+      tensor_utils.combine_batch_into_channels(observation[tf.newaxis], 0)
+
+
+    # Apply blur to distribution.
+    distribution = _distribution_blur.blur(distribution)
+    observation = _observation_blur.blur(observation)
+
+    # Observation has shape `[angle_count, height, width, psfs]`.
+    observation = tf.transpose(
+      tf.reshape(observation, [shape for _, shape in transpose]),
+      reverse_transpose)[0]
+
+    print("OBSERVATION SHAPE {}".format(observation))
+
+    return distribution[0, ..., 0], observation
+
+  return blur_
+
+
+def parse():
+  return record_utils._parse_example
+
+
+def set_shape(distribution_shape, observation_shape):
+
+  def set_shape(distribution, observation):
+    distribution.set_shape(distribution_shape)
+    observation.set_shape(observation_shape)
+    return distribution, observation
+
+  return set_shape
+
+
+def check_for_nan(distribution, observation):
+  """Returns array of 0's if any value in array is a Nan."""
+  return (tf.cond(tf.math.reduce_any(tf.is_nan(distribution)), lambda: tf.zeros_like(distribution), lambda: distribution),
+         tf.cond(tf.math.reduce_any(tf.is_nan(observation)), lambda: tf.zeros_like(observation), lambda: observation))
+
+
+def rotate_observation(angles):
+
+  def rotate_observation_(distribution, observation):
+    observation = tensor_utils.rotate_tensor(
+      observation,
+      tf.convert_to_tensor(
+        [-1 * angle for angle in angles]),
+      0
+    )
+
+    observation = tensor_utils.combine_batch_into_channels(
+      observation[tf.newaxis], 0)[0][0]
+    return distribution, observation
+
+  return rotate_observation_
+
+
+def downsample(distribution_downsample_size, observation_downsample_size):
+
+  def downsample_(distribution, observation):
+    distribution = tf.image.resize_images(
+      distribution, distribution_downsample_size)
+
+    observation = tf.image.resize_images(
+      observation, observation_downsample_size)
+    return distribution, observation
+
+  return downsample_
+
+def swap(distribution, observation):
+  return observation, distribution
