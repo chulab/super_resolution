@@ -107,6 +107,7 @@ def rotate_tensor_np(
     tensor: np.ndarray,
     angles: List[float],
     rotation_axis: int,
+    pad_and_trim: bool=False,
 ) -> np.ndarray:
   """Rotates a `np.ndarray` along a given batch dimension.
 
@@ -122,6 +123,10 @@ def rotate_tensor_np(
     tensor: See documentation for `rotate_tensor`.
     angles: See documentation for `rotate_tensor`.
     rotation_axis: See documentation for `rotate_tensor`.
+    pad_and_trim: If `True` then the input is first padded with 0's, and after
+      the rotation is applied, the outer axes are trimmed to return an array
+      with the original size. This makes the function have output similar to
+      that of `rotate_tensor`.
 
   Returns:
     `tf.Tensor` of same shape as `tensor` with rotation applied.
@@ -173,12 +178,20 @@ def rotate_tensor_np(
   # Convert angles from rad to degree.
   angles = [angle * 180. / np.pi for angle in angles]
 
+  # Optionally pad.
+  if pad_and_trim:
+    tensor = np.pad(tensor, [[0, 0], [1, 1], [1, 1], [0, 0]], mode="constant")
+
   # Perform rotation.
   slices = [ndimage.rotate(tensor_slice, angle, reshape=False, order=1, mode="nearest") for
             tensor_slice, angle in zip(tensor, angles)]
 
   # tensor = tf.contrib.image.rotate(tensor, angles, "BILINEAR")
   tensor = np.stack(slices, 0)
+
+  # Trim excess if `pad_and_trim`.
+  if pad_and_trim:
+    tensor = tensor[:, 1:-1, 1:-1]
 
   # Retrieve dimensions compressed into `channels`.
   tensor = np.reshape(tensor, [shape for _, shape in transpose])
@@ -207,8 +220,11 @@ def combine_batch_into_channels(
     `tf.Tensor` of shape
       `[preserved_batch_dimension, width, height, new_channels]` where the size
       of `new_channels` depends on the number and size of `batch_dimensions` in
-      `tensor`. Also returns the transposition sequence required to recover
-      the original axis order if
+      `tensor`.
+    `transpose`: tranposition (including axes shapes) used to merge dimensions
+      into channels.
+    `inverse_transpose`: Also returns the transposition sequence required to recover
+      the original axis order.
   """
   tensor_shape = tensor.shape.as_list()
   if exclude_dimension < 0:
@@ -223,7 +239,7 @@ def combine_batch_into_channels(
   # Replace unknown dimension with -1.
   tensor_shape = [-1 if dim is None else dim for dim in tensor_shape]
 
-
+  # `axes` is a list of `axis, shape`
   axes = [(axis, shape) for axis, shape in enumerate(tensor_shape)]
 
   # Keep `rotation_axis` as batch dimension.
@@ -238,12 +254,16 @@ def combine_batch_into_channels(
   # Transpose.
   tensor = tf.transpose(tensor, [axis for axis, _ in transpose])
 
+  # Compute reverse transpose:
+  inverse_transpose = _reverse_transpose_sequence(
+    [axis for axis, _ in transpose])
+
   # Reshape to put all of the batch dimensions into channels.
   return tf.reshape(
     tensor,
     ([shape for _, shape in transpose[:3]] +
      [max(reduce(mul, [shape for _, shape in transpose[3:]], 1), -1)])
-  )
+  ), transpose, inverse_transpose
 
 
 def _reverse_transpose_sequence(transpose_sequence: List):

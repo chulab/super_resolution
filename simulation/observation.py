@@ -228,6 +228,7 @@ def rotate_and_observe_np(
     state: np.ndarray,
     angles: List[float],
     impulse: np.ndarray,
+    rotate_back: bool=True,
 ) -> np.ndarray:
   """Convenience function to perform rotation, observe, reverse rotation.
 
@@ -251,14 +252,15 @@ def rotate_and_observe_np(
   state = np.tile(state, [1, len(angles), 1, 1, 1])
 
   # Rotate images along `angle` dimension.
-  state = tensor_utils.rotate_tensor_np(state, angles, 1)
+  state = tensor_utils.rotate_tensor_np(state, angles, 1, pad_and_trim=True)
 
   # Observation.
   rf_signal = observe_np(state, impulse)
 
   # Rotate back.
-  rf_signal = tensor_utils.rotate_tensor_np(
-    rf_signal, [-1 * angle for angle in angles], 1)
+  if rotate_back:
+    rf_signal = tensor_utils.rotate_tensor_np(
+      rf_signal, [-1 * angle for angle in angles], 1, pad_and_trim=True)
 
   # Return RF data.
   return rf_signal

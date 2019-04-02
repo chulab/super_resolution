@@ -31,33 +31,30 @@ class USSimulator(object):
   simulation.
 
   Attributes:
-    angles:
-    frequencies:
-    modes: List of modes (`L>=0`) for simulation. See ``
-    numerical_aperture: Float describing numerical aperture of US device.
-    transducer_bandwidth: Float describing bandwidth of
+    grid_unit: Float describing grid size in meters.
+    angles: List of angles from which to perform simulation.
+    psf_description: List of `PsfDescription` used to construct PSF for
+      simulation.
     psf_axial_length: Float describing physical size of psf used for simulation
       in meters.
     psf_transverse_length: Same as `psf_axial_length` but for transverse
       direction.
-    grid_unit: Float describing grid size in meters.
+
   """
 
   def __init__(
       self,
+      grid_unit: float,
       angles: List[float],
-      frequencies: List[float],
-      modes: List[int],
-      numerical_aperture: float,
-      transducer_bandwidth: float,
+      psf_descriptions: List[defs.PsfDescription],
       psf_axial_length: float,
-      psf_transverse_length,
-      grid_unit,
+      psf_transverse_length: float,
   ):
     self._grid_unit = grid_unit
+
     self._angles = angles
-    self._frequencies = frequencies
-    self._modes = modes
+
+    self._psf_descriptions = psf_descriptions
 
     self.psf_physical_size = [psf_transverse_length, 0., psf_axial_length]
 
@@ -70,20 +67,17 @@ class USSimulator(object):
     self._psf_coordinates = self._coordinates(self.psf_physical_size,
                                               psf_grid_dimensions)
 
-    self._psf_description = self._psf_description(self._frequencies,
-                                                  self._modes)
-
     # Generate the impulse used for simulation.
     self._psf = self._build_psf(
       coordinates=self._psf_coordinates,
-      psf_descriptions=self._psf_description,
-      transducer_bandwidth=transducer_bandwidth,
-      numerical_aperture=numerical_aperture,
+      psf_descriptions=self._psf_descriptions,
     )
 
     # Convert list of psf's into filter with shape
     # `[height, width, 1, psf_count]`.
     self._impulse_filter = psf_utils.to_filter(self._psf, mode="FROM_SINGLE")
+
+    self.rotate_back = False
 
   def _coordinates(self, lengths, grid_dimensions):
     """Makes coordinate grid for impulse response."""
@@ -91,24 +85,22 @@ class USSimulator(object):
       lengths, grid_dimensions, center=True)
     return np.stack([xx, yy, zz], -1)
 
-  def _psf_description(self, frequencies, modes):
-    """Returns all cartesian products of frequencies and modes."""
-    return [defs.PsfDescription(frequency, mode) for frequency, mode in
-            itertools.product(frequencies, modes)]
-
   def _build_psf(
       self,
       coordinates,
       psf_descriptions,
-      transducer_bandwidth,
-      numerical_aperture,
   ):
+    """Returns list of psfs based on `psf_descriptions`."""
     psfs = []
     for description in psf_descriptions:
       # Generate psf from each description.
-      psf_temp = response_functions.gaussian_impulse_response(
-            coordinates, description.frequency, description.mode,
-            numerical_aperture, transducer_bandwidth)[:, 0, :]
+      psf_temp = response_functions.gaussian_impulse_response_v2(
+        coordinates=coordinates,
+        frequency=description.frequency,
+        mode=description.mode,
+        numerical_aperture=description.numerical_aperture,
+        frequency_sigma=description.frequency_sigma,
+      )[:, 0, :]
 
       # Swap `x` and `z` axes.
       psf_temp = np.transpose(psf_temp, [1, 0])
@@ -120,8 +112,8 @@ class USSimulator(object):
     return self._psf
 
   @property
-  def psf_description(self):
-    return self._psf_description
+  def psf_descriptions(self):
+    return self._psf_descriptions
 
   @property
   def angles(self):
@@ -132,14 +124,6 @@ class USSimulator(object):
     self._angles = angles
 
   @property
-  def frequencies(self):
-    return self._frequencies
-
-  @property
-  def modes(self):
-    return self._modes
-
-  @property
   def grid_unit(self):
     """Returns response function grid units.
 
@@ -147,6 +131,14 @@ class USSimulator(object):
     axial grid size is TWICE that of the transverse units.
     """
     return self._grid_unit
+
+  @property
+  def rotate_back(self):
+    return self._rotate_back
+
+  @rotate_back.setter
+  def rotate_back(self, rotate_back):
+    self._rotate_back = rotate_back
 
   def simulate(
       self,
@@ -167,4 +159,5 @@ class USSimulator(object):
       scatter_distribution,
       self._angles,
       self._impulse_filter,
+      self._rotate_back,
     )

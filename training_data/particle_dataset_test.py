@@ -50,10 +50,15 @@ class ParticleDatasetTest(unittest.TestCase):
     array = np.pad(
       np.ones([5, 5]), [[5, 5], [5, 5]], mode="constant")[np.newaxis, :, :]
     array = array * np.array([2, 6, 8])[:, np.newaxis, np.newaxis]
-    poisson_array = particle_dataset.poisson_noise(array, 500)
+    poisson_array = particle_dataset.poisson_noise(array, 500, True)
     for a in poisson_array:
       self.assertAlmostEqual(1, np.amax(a))
 
+  def testPoissonNormalizeNan(self):
+    array = np.zeros([10, 5, 5])[np.newaxis, :, :]
+    poisson_array = particle_dataset.poisson_noise(array, 500, True)
+    for a in poisson_array:
+      self.assertAlmostEqual(0, np.amax(a))
 
 if __name__=="__main__":
   unittest.main()

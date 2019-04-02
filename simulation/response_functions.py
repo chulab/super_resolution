@@ -1,6 +1,7 @@
 """Contains 1D response functions (PSF) to model US devices."""
 
 import numpy as np
+from scipy import signal
 
 from typing import List
 
@@ -83,6 +84,32 @@ def beam_waist_radius(
   return _FWHM_1_OVER_E_SQUARED * full_width_half_max_field / 2
 
 
+def gaussian_pulse_v2(
+    frequency_sigma,
+    length: int,
+    dz: float,
+):
+  """Simulates a gaussian pulse given a wavelength and bandwidth.
+
+  The center of the pulse is assumed to be at the center index of the output.
+
+  Args:
+    frequency_sigma: standard deviation in frequency of gaussian.
+    length: length in pixels of output,
+    dz: grid size.
+
+  Returns:
+    `np.ndarray` of shape `[length]` containing pulse window.
+"""
+  # Compute bandwidth limited gaussian pulse.
+  pulse_sigma_z = defs._SPEED_OF_SOUND_WATER / (np.pi * 2 * frequency_sigma)
+
+  # Discretize pulse on grid.
+  pulse_sigma_z_grid = pulse_sigma_z / dz
+
+  return signal.gaussian(length, pulse_sigma_z_grid)
+
+
 def gaussian_pulse(
     center_wavelength: float,
     transducer_bandwidth: float,
@@ -115,7 +142,6 @@ def gaussian_pulse(
   pulse_sigma_z_grid = pulse_sigma_z / dz
 
   return utils.discrete_gaussian(length, pulse_sigma_z_grid)
-
 
 
 def gaussian_lateral(
@@ -179,7 +205,7 @@ def _complex_beam_parameter(
 def coordinate_grid(
     lengths: List[float],
     grid_dimensions: List[float],
-    center,
+    center: bool,
 ):
   """Creates coordinate meshgrids of arbitrary dimension.
 
@@ -268,7 +294,7 @@ def gaussian_impulse_response(
     frequency,
     mode,
     numerical_aperture,
-    bandwidth
+    bandwidth,
 ):
   """Constructs a PSF of a guassian pulse centered on coordinate grid.
 
@@ -308,6 +334,60 @@ def gaussian_impulse_response(
   pulse_window = gaussian_pulse(
     center_wavelength=wavelength,
     transducer_bandwidth=bandwidth,
+    length=mode_amplitude.shape[-1],
+    dz=dz,
+  )
+
+  # Real component of beam is physical impulse response. We slice along the
+  # center coodinate in the `Y` direction as we use a 1D array.
+  return np.real(mode_amplitude * spatial_phase * pulse_window)
+
+
+# TODO(noah): use coordinate grid for gaussian pulse.
+def gaussian_impulse_response_v2(
+    coordinates,
+    frequency,
+    mode,
+    numerical_aperture,
+    frequency_sigma,
+):
+  """Constructs a PSF of a guassian pulse centered on coordinate grid.
+
+  This function constructs the 2D impulse response of a gaussian pulse where
+  `bandwidth` < 1.
+
+  Args:
+    coordinates: `np.ndarray` of shape `[X, Y, Z, 3]` where the `[X, Y, Z]`th
+      slice contains the `X`, `Y`, and `Z` coordinates.
+    frequency: frequency of wave in Hz.
+    mode: Gaussian L mode.
+    numerical_aperture: NA of US device.
+    frequency_sigma: See `gaussian_pulse_v2`.
+
+  Returns: np.ndarray of shape `coordinates.shape[:-1]` containing
+    gaussian pulse sampled at points given by `coordinates`.
+  """
+  wavelength = defs.wavelength_from_frequency(frequency)
+  wavenumber = np.pi * 2 / wavelength
+
+  # We first generate the amplitude of a monochromatic gaussian beam.
+  mode_amplitude = hermite_gaussian_mode(
+    coordinates=coordinates,
+    wavelength=wavelength,
+    L=mode,
+    M=0,
+    numerical_aperature=numerical_aperture
+  )
+
+  # Calculate the monochromatic instantaneous phase term.
+  spatial_phase = np.exp(-1j * wavenumber * coordinates[..., 2])
+
+  # Compute grid size in z-axis.
+  dz = coordinates[0, 0, 1, 2]-coordinates[0, 0, 0, 2]
+
+  # Compute windowing amplitude which is applied to the gaussian beam.
+  pulse_window = gaussian_pulse_v2(
+    frequency_sigma=frequency_sigma,
     length=mode_amplitude.shape[-1],
     dz=dz,
   )

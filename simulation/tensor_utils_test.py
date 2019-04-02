@@ -147,14 +147,14 @@ class RotateNumpyTest(tf.test.TestCase):
       tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
 
   def testRotationNoBatch(self):
-    tensor = np.pad(np.random.rand(*[5] * 4), [[0,0], [1,1], [1,1], [0,0]], mode="constant")
-    angles = np.random.rand(5) * np.pi
+    tensor = np.pad(np.random.rand(*[10] * 4), [[0,0], [1,1], [1,1], [0,0]], mode="constant")
+    angles = np.random.rand(10) * np.pi
     rotation_axis = 0
     true_rotation = tf.contrib.image.rotate(tensor, angles, "BILINEAR")
     rotate = tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
     with self.test_session() as sess:
       truth = sess.run(true_rotation)
-    self.assertAllClose(truth, rotate)
+    self.assertAllClose(truth, rotate, atol=.0001)
 
   def testRotationBatch(self):
     tensor = np.pad(np.random.rand(3, 7, 5, 5, 5),
@@ -167,6 +167,30 @@ class RotateNumpyTest(tf.test.TestCase):
         tensor[batch_iter], angles, "BILINEAR"))
     true_rotation = tf.stack(true_rotations, 0)
     rotate = tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis)
+    with self.test_session() as sess:
+      truth = sess.run(true_rotation)
+    self.assertAllClose(truth, rotate)
+
+  def testRotationNoBatchPadAndTrim(self):
+    tensor = np.random.rand(*[10] * 4)
+    angles = np.random.rand(10) * np.pi
+    rotation_axis = 0
+    true_rotation = tf.contrib.image.rotate(tensor, angles, "BILINEAR")
+    rotate = tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis, True)
+    with self.test_session() as sess:
+      truth = sess.run(true_rotation)
+    self.assertAllClose(truth, rotate, atol=.0001)
+
+  def testRotationBatchPadAndTrim(self):
+    tensor = np.random.rand(3, 7, 5, 5, 5)
+    angles = np.random.rand(7) * np.pi
+    rotation_axis = 1
+    true_rotations = []
+    for batch_iter in range(3):
+      true_rotations.append(tf.contrib.image.rotate(
+        tensor[batch_iter], angles, "BILINEAR"))
+    true_rotation = tf.stack(true_rotations, 0)
+    rotate = tensor_utils.rotate_tensor_np(tensor, angles, rotation_axis, True)
     with self.test_session() as sess:
       truth = sess.run(true_rotation)
     self.assertAllClose(truth, rotate)
@@ -186,7 +210,7 @@ class TransposeTest(tf.test.TestCase):
   def testCombineBatchIntoChannels(self):
     tensor = tf.random_uniform([5, 10, 7, 8, 9])
 
-    combined = tensor_utils.combine_batch_into_channels(
+    combined, _, _ = tensor_utils.combine_batch_into_channels(
       tensor, 0
     )
 
@@ -199,6 +223,21 @@ class TransposeTest(tf.test.TestCase):
       combined_eval, truth_eval = sess.run([combined, true_combination])
 
     self.assertAllEqual(truth_eval, combined_eval)
+
+  def testReverseBatchChannels(self):
+    tensor = tf.random_uniform([5, 10, 7, 8, 9])
+
+    combined, transpose, inverse_transpose = tensor_utils.combine_batch_into_channels(
+      tensor, 1
+    )
+
+    reverse = tf.transpose(
+      tf.reshape(combined, [shape for _, shape in transpose]),
+      inverse_transpose)
+
+    with self.test_session() as sess:
+      tensor_eval, reverse_eval = sess.run([tensor, reverse])
+      self.assertAllEqual(tensor_eval, reverse_eval)
 
   @parameterized.expand([
     (4, 1),

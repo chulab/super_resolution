@@ -38,6 +38,7 @@ def save_dataset(
   file_count = int(math.ceil(float(count) / shard_size))
   for shard in range(1, file_count + 1):
     output = np.stack([next(generator) for _ in range(shard_size)], 0)
-    filename = "%s_%d_of_%d.npy" % (file_prefix, shard, file_count)
+    filename = "{file_prefix}_{shard:05}_of_{file_count:05}.npy".format(
+      file_prefix=file_prefix, shard=shard, file_count=file_count)
     output_file = os.path.join(save_directory, filename)
     np.save(output_file, output)

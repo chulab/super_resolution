@@ -88,6 +88,15 @@ class responseFunctionTest(unittest.TestCase):
     np.testing.assert_allclose(
       test_gaussian_pulse.shape, list(coordinates.shape[:-1]))
 
+  def testGaussianPulseV2(self):
+    """Tests gaussian pulse."""
+    frequency_sigma = 2e6
+    length = 9
+    dz = 1e-4
+    pulse = response_functions.gaussian_pulse_v2(
+    frequency_sigma, length, dz)
+    true_pulse = utils.discrete_gaussian(length, 11.926)
+    np.testing.assert_allclose(pulse, true_pulse, 3)
 
 if __name__ == "__main__":
   unittest.main()

@@ -4,6 +4,7 @@ import numpy as np
 
 from typing import List
 
+import tensorflow as tf
 
 def is_broadcast_compatible(
     shape_a: List[int],
@@ -33,3 +34,9 @@ def normalize_along_axis(array: np.ndarray, axis: int=-1, order: int=2):
       norms[norms==0] = 1
 
   return array / np.expand_dims(norms, axis)
+
+def sample_spherical(count: int, ndim: int):
+    """Uniformly samples `count` points on ndim-unit sphere."""
+    vec = np.random.randn(ndim, count)
+    vec /= np.linalg.norm(vec, axis=0)
+    return np.swapaxes(vec, 0, 1)
