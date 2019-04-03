@@ -7,7 +7,7 @@ import numpy as np
 from scipy import signal
 import tensorflow as tf
 
-from preprocessing import signal
+from preprocessing import signals
 from simulation import psf_utils
 from simulation import tensor_utils
 from training_data import record_utils
@@ -209,7 +209,22 @@ def hilbert(hilbert_axis):
   """Applies hilbert transform to `observation`."""
 
   def hilbert_(distribution, observation):
-    observation = signal.hilbert(observation, hilbert_axis)
+    observation = signals.hilbert(observation, hilbert_axis)
+    observation = np.abs(observation)
     return distribution, observation
 
   return hilbert_
+
+
+def pool_downsample(distribution_pool_size, observation_pool_size):
+
+  def _pool_downsample(distribution, observation):
+    distribution = distribution[tf.newaxis, ..., tf.newaxis]
+    distribution = tf.keras.layers.AveragePooling2D(
+      distribution_pool_size).apply(distribution)
+    distribution = distribution[0, ..., 0]
+    observation = tf.keras.layers.AveragePooling2D(
+      observation_pool_size).apply(observation)
+    return distribution, observation
+
+  return _pool_downsample
