@@ -11,8 +11,6 @@ def swapaxes(
 ):
   axes = list(range(tensor.shape.ndims))
   axes[axis_1], axes[axis_2] = axes[axis_2], axes[axis_1]
-
-  print("swap combo {}".format(axes))
   return tf.transpose(tensor, axes)
 
 
@@ -39,7 +37,6 @@ def hilbert(
   last_axis = len(tensor_shape) - 1
 
   if axis != last_axis:
-    print("swapping axes.")
     tensor = swapaxes(tensor, axis, last_axis)
 
   Xf = tf.fft(tensor)
@@ -59,7 +56,6 @@ def hilbert(
   tensor = tf.ifft(Xf * h)
 
   if axis != last_axis:
-    print("swapping axes.")
     tensor = swapaxes(tensor, axis, last_axis)
 
   return tensor

@@ -1,11 +1,11 @@
-"""Tests for `signal.py`"""
+"""Tests for `signals.py`"""
 
 import numpy as np
 from scipy import signal as scipy_signal
 from scipy import fftpack
 import tensorflow as tf
 
-from preprocessing import signal
+from preprocessing import signals
 
 
 class SignalTest(tf.test.TestCase):
@@ -18,7 +18,7 @@ class SignalTest(tf.test.TestCase):
 
     hilbert_true = scipy_signal.hilbert(arr, axis=0)
 
-    hilbert_test = signal.hilbert(tf.convert_to_tensor(arr), axis=0)
+    hilbert_test = signals.hilbert(tf.convert_to_tensor(arr), axis=0)
 
     with tf.Session() as sess:
       hilbert_test_eval = sess.run(hilbert_test)
@@ -32,7 +32,7 @@ class SignalTest(tf.test.TestCase):
 
     hilbert_true = scipy_signal.hilbert(arr, axis=0)
 
-    hilbert_test = signal.hilbert(tf.convert_to_tensor(arr), axis=0)
+    hilbert_test = signals.hilbert(tf.convert_to_tensor(arr), axis=0)
 
     with tf.Session() as sess:
       hilbert_test_eval = sess.run(hilbert_test)
