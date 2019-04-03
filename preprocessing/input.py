@@ -14,7 +14,6 @@ def input_fn(
     parse_fns: List[Callable],
     parallel_calls: List[int],
     interleave_cycle_length: int = 1,
-    shuffle_buffer_size: int=1,
     batch_size: int=1,
     prefetch: int=None,
     file_signature: str="*.tfrecord"
@@ -55,12 +54,8 @@ def input_fn(
     dataset = files.interleave(
       tf.data.TFRecordDataset, cycle_length=interleave_cycle_length)
 
-    # Shuffle examples.
-    dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
-
-    # Extract data.
+    # Extract data and apply preprocessing.
     for parse_fn, parallel_calls in zip(parse_fns, parallel_calls):
-      print(parse_fn)
       dataset = dataset.map(parse_fn, num_parallel_calls=parallel_calls)
 
     # Batch.
@@ -81,12 +76,6 @@ def parse_args():
 
   parser.add_argument(
     '--interleave_cycle_length',
-    type=int,
-    default=1,
-  )
-
-  parser.add_argument(
-    '--shuffle_buffer_size',
     type=int,
     default=1,
   )
@@ -127,7 +116,6 @@ def make_input_fn(
     parse_fns=parse_fns,
     parallel_calls=[args.parallel_calls] * len(parse_fns),
     interleave_cycle_length=args.interleave_cycle_length,
-    shuffle_buffer_size=args.shuffle_buffer_size,
     batch_size=args.batch_size,
     prefetch=args.prefetch,
     file_signature=args.file_signature,
