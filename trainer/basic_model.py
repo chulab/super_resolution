@@ -201,6 +201,7 @@ def build_estimator(
 def input_fns_(
   example_shape: Tuple[int, int],
   observation_spec,
+  pool_downsample,
 ):
   """Input functions for training residual_frequency_first_model."""
   fns =[]
@@ -218,7 +219,9 @@ def input_fns_(
 
   fns.append(preprocess.hilbert(hilbert_axis=1))
 
-  fns.append(preprocess.pool_downsample(10, 10))
+  fns.append(preprocess.pool_downsample(
+    distribution_pool_size=pool_downsample,
+    observation_pool_size=pool_downsample,))
 
   fns.append(preprocess.swap)
 
@@ -235,6 +238,7 @@ def input_fns():
   return input_fns_(
     example_shape=args.example_shape,
     observation_spec=observation_spec,
+    pool_downsample=args.pool_downsample,
   )
 
 
@@ -254,14 +258,8 @@ def parse_args():
   )
 
   parser.add_argument(
-    '--distribution_downsample_size',
-    type=float,
-    required=True,
-  )
-
-  parser.add_argument(
-    '--observation_downsample_size',
-    type=float,
+    '--pool_downsample',
+    type=int,
     required=True,
   )
 
