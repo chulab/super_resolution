@@ -19,7 +19,7 @@ def colorbar(mappable):
   cax = divider.append_axes("right", size="5%", pad=0.05)
   return fig.colorbar(mappable, cax=cax)
 
-def plot_observation_prediction__distribution(
+def plot_observation_prediction_distribution(
     observation: np.ndarray,
     distribution: np.ndarray,
     prediction: np.ndarray,
