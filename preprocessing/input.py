@@ -1,5 +1,6 @@
 """Constructs input function for training."""
 
+import argparse
 import logging
 import os
 
@@ -11,7 +12,7 @@ import tensorflow as tf
 def input_fn(
     dataset_directory: str,
     parse_fns: List[Callable],
-    parallel_calls: int = 1,
+    parallel_calls: List[int],
     interleave_cycle_length: int = 1,
     shuffle_buffer_size: int=1,
     batch_size: int=1,
@@ -67,3 +68,67 @@ def input_fn(
 
     dataset = dataset.prefetch(prefetch)
     return dataset
+
+
+def parse_args():
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument(
+    '--parallel_calls',
+    type=int,
+    default=1,
+  )
+
+  parser.add_argument(
+    '--interleave_cycle_length',
+    type=int,
+    default=1,
+  )
+
+  parser.add_argument(
+    '--shuffle_buffer_size',
+    type=int,
+    default=1,
+  )
+
+  parser.add_argument(
+    '--batch_size',
+    dest='batch_size',
+    type=int,
+    default=1,
+  )
+
+  parser.add_argument(
+    '--prefetch',
+    type=int,
+    default=1,
+  )
+
+  parser.add_argument(
+    '--file_signature',
+    type=str,
+    default="*.tfrecord",
+  )
+
+  args, _ = parser.parse_known_args()
+
+  return args
+
+
+def make_input_fn(
+    dataset_directory,
+    parse_fns,
+  ):
+
+  args = parse_args()
+
+  return input_fn(
+    dataset_directory=dataset_directory,
+    parse_fns=parse_fns,
+    parallel_calls=[args.parallel_calls] * len(parse_fns),
+    interleave_cycle_length=args.interleave_cycle_length,
+    shuffle_buffer_size=args.shuffle_buffer_size,
+    batch_size=args.batch_size,
+    prefetch=args.prefetch,
+    file_signature=args.file_signature,
+  )

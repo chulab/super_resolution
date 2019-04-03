@@ -56,10 +56,10 @@ class imageBlur(object):
     """
     if grid_pitch <= 0:
       raise ValueError("`grid_pitch` must be a positive float.")
-    if sigma_blur <= 0:
-      raise ValueError("`sigma_blur` must be a positive float.")
-    if kernel_size <= 0:
-      raise ValueError("`kernel_size` must be a positive float.")
+    if sigma_blur < 0:
+      raise ValueError("`sigma_blur` cannot be negative.")
+    if kernel_size < 0:
+      raise ValueError("`kernel_size` cannot be negative.")
 
     self._kernel = self._gaussian_kernel(
       grid_pitch, sigma_blur, kernel_size, blur_channels)
@@ -182,6 +182,22 @@ def downsample(distribution_downsample_size, observation_downsample_size):
     return distribution, observation
 
   return downsample_
+
+
+def select_random_frequency(distribution, observation):
+
+  # Select random frequency index.
+  freq_index = tf.random.uniform(
+    [], maxval=observation.shape.as_list()[3], dtype=tf.int32)
+
+  # Take index. `observation` has shape `[A, H, W]`.
+  observation = observation[..., freq_index]
+
+  # Swap axes. `observation` has shape `[H, W, A]`.
+  observation = tf.transpose(observation, (1, 2, 0))
+
+  return distribution, observation
+
 
 def swap(distribution, observation):
   return observation, distribution
