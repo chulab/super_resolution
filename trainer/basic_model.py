@@ -1,23 +1,55 @@
 """Defines model used to learn reconstruction."""
 
+import argparse
 import logging
+from typing import Tuple
 
 import tensorflow as tf
-from utils import array_utils
 
+from simulation import tensor_utils
 
-def make_hparams() -> dict:
+from preprocessing import preprocess
+from simulation import create_observation_spec
+
+def make_hparams() -> tf.contrib.training.HParams:
   """Create a HParams object specifying model hyperparameters."""
-  return {
-    'learning_rate': 0.1,
-    'observation_spec': None,
-  }
+  return tf.contrib.training.HParams(
+    learning_rate=0.001,
+    observation_spec=None,
+  )
 
 
-def AngleModule(input_shape):
-  """Defines angle module."""
-  with tf.name_scope("angle_module"):
-    inputs = tf.keras.Input(shape=input_shape)
+def network(input_layer, angles, training):
+  """Defines network.
+
+  Args:
+    `input_layer`: `tf.Tensor` node which outputs shapes `[b, h, w, c]`.
+    These represent observations.
+    training: Bool which sets whether network is in a training or evaluation/
+      test mode. (Drop out is turned on during training but off during
+      eval.)
+  """
+  input_layer.shape.assert_is_compatible_with(
+    [None, len(angles), None, None, None])
+
+  network = tensor_utils.rotate_tensor(
+    input_layer,
+    tf.convert_to_tensor([-1 * angle for angle in angles]),
+    1
+  )
+
+  network = tensor_utils.combine_batch_into_channels(network, 0)[0]
+
+  logging.info("Before feeding model {}".format(network))
+
+  with tf.variable_scope("Model"):
+    network = tf.keras.layers.Conv2D(
+      filters=32,
+      kernel_size=[3, 3],
+      dilation_rate=1,
+      padding="same",
+      activation=tf.nn.leaky_relu
+    ).apply(network)
 
     network = tf.keras.layers.Conv2D(
       filters=32,
@@ -25,7 +57,7 @@ def AngleModule(input_shape):
       dilation_rate=1,
       padding="same",
       activation=tf.nn.leaky_relu
-    )(inputs)
+    ).apply(network)
 
     network = tf.keras.layers.Conv2D(
       filters=32,
@@ -35,7 +67,7 @@ def AngleModule(input_shape):
       activation=tf.nn.leaky_relu
     ).apply(network)
 
-    output = tf.keras.layers.Conv2D(
+    network = tf.keras.layers.Conv2D(
       filters=32,
       kernel_size=[10, 10],
       dilation_rate=1,
@@ -43,76 +75,31 @@ def AngleModule(input_shape):
       activation=tf.nn.leaky_relu
     ).apply(network)
 
-    return tf.keras.Model(inputs=inputs, outputs=output)
-
-
-def model(input_shape, angles):
-  """Defines model.
-
-  Args:
-    input_layer: `tf.Tensor` of shape `height, width, `
-  """
-  with tf.name_scope("angle_first_model"):
-    inputs = tf.keras.Input(shape=input_shape)
-
-    network = tf.keras.layers.Lambda(
-      array_utils.reduce_split_tensor, arguments={'axis': 1}).apply(inputs)
-
-    angle_module = AngleModule(input_shape=input_shape[1:])
-
-    # First pipe each input through an `angle_module`.
-    angle_output = [angle_module(input) for input in network]
-
-    # Rotate output so all features are co-registered.
-    angle_centered = [
-      tf.keras.layers.Lambda(tf.contrib.image.rotate, arguments={
-        'angles': angle, 'interpolation': "BILINEAR"})(tensor)
-                      for tensor, angle in zip(angle_output, angles)]
-
-    # Stack output of angle modules along `filter` dimension.
-    network = tf.keras.layers.Concatenate()(angle_centered)
-
-    network = tf.keras.layers.Conv2D(
+    network = tf.keras.layers.DepthwiseConv2D(
       filters=32,
-      kernel_size=[3, 3],
+      kernel_size=[10, 10],
       dilation_rate=1,
       padding="same",
       activation=tf.nn.leaky_relu
     ).apply(network)
 
-    network = tf.keras.layers.Conv2D(
+    network = tf.keras.layers.DepthwiseConv2D(
       filters=32,
-      kernel_size=[3, 3],
-      dilation_rate=3,
+      kernel_size=[20, 20],
+      dilation_rate=1,
       padding="same",
       activation=tf.nn.leaky_relu
     ).apply(network)
 
-    network = tf.keras.layers.Conv2D(
-      filters=32,
-      kernel_size=[3, 3],
-      dilation_rate=2,
-      padding="same",
-      activation=tf.nn.leaky_relu
-    ).apply(network)
-
-    network = tf.keras.layers.Conv2D(
-      filters=32,
-      kernel_size=[3, 3],
-      dilation_rate=4,
-      padding="same",
-      activation=tf.nn.leaky_relu
-    ).apply(network)
-
-    output = tf.keras.layers.Conv2D(
+    network = tf.keras.layers.DepthwiseConv2D(
       filters=1,
-      kernel_size=[5, 5],
+      kernel_size=[3, 3],
       dilation_rate=1,
       padding="same",
       activation=tf.nn.leaky_relu
     ).apply(network)
 
-    return tf.keras.Model(inputs=inputs, outputs=output)
+    return network
 
 
 def model_fn(features, labels, mode, params):
@@ -137,8 +124,14 @@ def model_fn(features, labels, mode, params):
   logging.debug("`distributions` tensor recieved in model is "
                 "{}".format(distributions))
 
+  if mode == tf.estimator.ModeKeys.TRAIN:
+    training = True
+  else:
+    training = False
+
   # Run observations through CNN.
-  predictions = model(observations.shape[1:], params["observation_spec"].angles)(observations)[..., 0]
+  predictions = network(
+    observations, params['observation_spec'].angles, training)[..., 0]
 
   with tf.variable_scope("predictions"):
     predict_output = {
@@ -149,7 +142,7 @@ def model_fn(features, labels, mode, params):
   if mode == tf.estimator.ModeKeys.PREDICT:
     return tf.estimator.EstimatorSpec(
       mode=mode,
-      predictions=predictions
+      predictions=predict_output
     )
 
   # Loss. Compare output of nn to original images.
@@ -200,3 +193,80 @@ def build_estimator(
     config=config,
     params=params,
   )
+
+def input_fns_(
+  example_shape: Tuple[int],
+  observation_spec,
+  distribution_downsample_size,
+  observation_downsample_size,
+  distribution_blur_sigma,
+  observation_blur_sigma,
+):
+  """Input functions for training residual_frequency_first_model."""
+  fns =[]
+
+  # Parse.
+  fns.append(preprocess.parse())
+
+  # Add shape
+  fns.append(preprocess.set_shape(
+    distribution_shape=example_shape,
+    observation_shape=[len(observation_spec.angles)] + example_shape + [len(observation_spec.psf_descriptions)]))
+
+  # Check for Nan.
+  fns.append(preprocess.check_for_nan)
+
+  # Reduce Size.
+  fns.append(preprocess.downsample(
+    distribution_downsample_size, observation_downsample_size))
+
+  fns.append(preprocess.swap)
+
+  return fns
+
+
+def input_fns():
+  args = parse_args()
+
+  observation_spec = create_observation_spec.load_observation_spec(
+    args.observation_spec_path, False
+  )
+
+  return input_fns_(
+    example_shape=args.example_shape,
+    observation_spec=observation_spec,
+    distribution_blur_sigma=args.distribution_blur_sigma,
+    observation_blur_sigma=args.observation_blur_sigma,
+  )
+
+
+def parse_args():
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument(
+    '--example_shape',
+    type=lambda s: [int(size) for size in s.split(',')],
+    required=True,
+  )
+
+  parser.add_argument(
+    '--observation_spec_path',
+    type=str,
+    required=True,
+  )
+
+  parser.add_argument(
+    '--distribution_downsample_size',
+    type=float,
+    required=True,
+  )
+
+  parser.add_argument(
+    '--observation_downsample_size',
+    type=float,
+    required=True,
+  )
+
+  args, _ = parser.parse_known_args()
+
+  return args
