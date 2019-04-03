@@ -47,12 +47,14 @@ def input_fn(
     # Makes `Dataset` of file names.
     files = tf.data.Dataset.list_files(file_pattern, shuffle=True)
 
-    # Repeat and shuffle.
-    files = files.apply(tf.data.experimental.shuffle_and_repeat(100))
-
     # Generates `Dataset` from each file and interleaves.
-    dataset = files.interleave(
-      tf.data.TFRecordDataset, cycle_length=interleave_cycle_length)
+    dataset = files.apply(
+      tf.data.experimental.parallel_interleave(
+      lambda filename: tf.data.TFRecordDataset(filename),
+      cycle_length=interleave_cycle_length,
+      sloppy=True,
+      )
+    )
 
     # Extract data and apply preprocessing.
     for parse_fn, parallel_calls in zip(parse_fns, parallel_calls):
