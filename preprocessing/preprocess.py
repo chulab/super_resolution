@@ -7,6 +7,7 @@ import numpy as np
 from scipy import signal
 import tensorflow as tf
 
+from preprocessing import signal
 from simulation import psf_utils
 from simulation import tensor_utils
 from training_data import record_utils
@@ -204,5 +205,11 @@ def swap(distribution, observation):
   return observation, distribution
 
 
-def hilbert():
-  pass
+def hilbert(hilbert_axis):
+  """Applies hilbert transform to `observation`."""
+
+  def hilbert_(distribution, observation):
+    observation = signal.hilbert(observation, hilbert_axis)
+    return distribution, observation
+
+  return hilbert_
