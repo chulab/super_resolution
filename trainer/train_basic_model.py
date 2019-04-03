@@ -51,7 +51,6 @@ def parse_args():
   parser.add_argument('--cloud_train', action='store_true')
   parser.set_defaults(cloud_train=False)
 
-
   args, _ = parser.parse_known_args()
 
   return args

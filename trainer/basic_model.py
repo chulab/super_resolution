@@ -67,7 +67,7 @@ def network(input_layer, angles, training):
       activation=tf.nn.leaky_relu
     ).apply(network)
 
-    network = tf.keras.layers.Conv2D(
+    network = tf.keras.layers.DepthwiseConv2D(
       filters=32,
       kernel_size=[10, 10],
       dilation_rate=1,
@@ -91,7 +91,7 @@ def network(input_layer, angles, training):
       activation=tf.nn.leaky_relu
     ).apply(network)
 
-    network = tf.keras.layers.DepthwiseConv2D(
+    network = tf.keras.layers.Conv2D(
       filters=1,
       kernel_size=[3, 3],
       dilation_rate=1,
@@ -123,6 +123,10 @@ def model_fn(features, labels, mode, params):
   distributions = labels
   logging.debug("`distributions` tensor recieved in model is "
                 "{}".format(distributions))
+
+  # Downsample.
+  observations = tf.keras.layers.AveragePooling2D(10).apply(observations)
+  distributions = tf.keras.layers.AveragePooling2D(10).apply(distributions)
 
   if mode == tf.estimator.ModeKeys.TRAIN:
     training = True
@@ -195,12 +199,8 @@ def build_estimator(
   )
 
 def input_fns_(
-  example_shape: Tuple[int],
+  example_shape: Tuple[int, int],
   observation_spec,
-  distribution_downsample_size,
-  observation_downsample_size,
-  distribution_blur_sigma,
-  observation_blur_sigma,
 ):
   """Input functions for training residual_frequency_first_model."""
   fns =[]
@@ -211,14 +211,14 @@ def input_fns_(
   # Add shape
   fns.append(preprocess.set_shape(
     distribution_shape=example_shape,
-    observation_shape=[len(observation_spec.angles)] + example_shape + [len(observation_spec.psf_descriptions)]))
+    observation_shape=[len(observation_spec.angles)] + list(example_shape) + [len(observation_spec.psf_descriptions)]))
 
   # Check for Nan.
   fns.append(preprocess.check_for_nan)
 
-  # Reduce Size.
-  fns.append(preprocess.downsample(
-    distribution_downsample_size, observation_downsample_size))
+  fns.append(preprocess.hilbert(hilbert_axis=1))
+
+  fns.append(preprocess.pool_downsample(10, 10))
 
   fns.append(preprocess.swap)
 
@@ -235,8 +235,6 @@ def input_fns():
   return input_fns_(
     example_shape=args.example_shape,
     observation_spec=observation_spec,
-    distribution_blur_sigma=args.distribution_blur_sigma,
-    observation_blur_sigma=args.observation_blur_sigma,
   )
 
 
