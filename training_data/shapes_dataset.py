@@ -130,22 +130,22 @@ def _line(
     ValueError: If `coordinates` and `origin` are not compatible.
   """
   if len(origin) != coordinates.shape[-1]:
-      raise ValueError("`origin` and `coordinates` must have same number of"
+    raise ValueError("`origin` and `coordinates` must have same number of"
       "dimensions but got {} and {}".format(
       len(origin), coordinates.shape[-1]))
 
-      # compute relative position vectors
-      relative_positions = coordinates - origin
+  # compute relative position vectors
+  relative_positions = coordinates - origin
 
-      # store normalized gradient for efficiency
-      normalized_grad = normalize_along_axis(gradient)
+  # Store normalized gradient for efficiency
+  normalized_grad = normalize_along_axis(gradient)
 
-      # find projection of position vectors orthogonal to line defined by gradient
-      ortho_projector = lambda v: v - np.dot(v, normalized_grad) * normalized_grad
-      ortho_proj = np.apply_along_axis(ortho_projector, -1, relative_positions)
-      squared_ortho_distance = np.sum(ortho_proj ** 2, -1)
+  # Find projection of position vectors orthogonal to line defined by gradient
+  ortho_projector = lambda v: v - np.dot(v, normalized_grad) * normalized_grad
+  ortho_proj = np.apply_along_axis(ortho_projector, -1, relative_positions)
+  squared_ortho_distance = np.sum(ortho_proj ** 2, -1)
 
-      return squared_ortho_distance <= radius ** 2
+  return squared_ortho_distance <= radius ** 2
 
 
 def random_lines(
@@ -237,38 +237,37 @@ def _meta_blob(
     ValueError: If `coordinates` and `origin` are not compatible.
   """
   if len(origin) != coordinates.shape[-1]:
-      raise ValueError("`origin` and `coordinates` must have same number of"
-      "dimensions but got {} and {}".format(
-      len(origin), coordinates.shape[-1]))
+    raise ValueError("`origin` and `coordinates` must have same number of "
+    "dimensions but got {} and {}".format(len(origin), coordinates.shape[-1]))
 
-      # number of dimensions in box
-      ndim = len(origin)
+  # number of dimensions in box
+  ndim = len(origin)
 
-      # find radii weights, whose root-mean-square is avg_radius
-      radii = avg_radius * np.abs(sample_spherical(1, num_centers)[0])
+  # find radii weights, whose root-mean-square is avg_radius
+  radii = avg_radius * np.abs(sample_spherical(1, num_centers)[0])
 
-      # randomly generate origins while remaining connected
-      origins = [origin]
-      relative_positions = sample_spherical(num_centers - 1, ndim)
-      for radius, pos in zip(radii[1:], relative_positions):
+  # randomly generate origins while remaining connected
+  origins = [origin]
+  relative_positions = sample_spherical(num_centers - 1, ndim)
+  for radius, pos in zip(radii[1:], relative_positions):
 
-          # find random origin already in origins to extend from
-          rand_int = np.random.randint(0, len(origins))
+      # find random origin already in origins to extend from
+      rand_int = np.random.randint(0, len(origins))
 
-          # extend in given direction and add to list
-          origins.append(origins[rand_int] + (radius + radii[rand_int]) * pos)
+      # extend in given direction and add to list
+      origins.append(origins[rand_int] + (radius + radii[rand_int]) * pos)
 
-          # stores weighted inverse squared distances
-          box = np.zeros(coordinates.shape[:-1])
+      # stores weighted inverse squared distances
+      box = np.zeros(coordinates.shape[:-1])
 
-          # find weighted inverse squared distances
-          for center, square_radius in zip(origins, radii**2):
-              dist_square = np.sum((coordinates - center) ** 2, -1)
-              # if coordinate is at origin, set to 2/squared_radius to include it
-              inv_dist_square = np.where(dist_square!= 0, 1/dist_squared, 2/squared_radius)
-              box += inv_dist_square * squared_radius
+      # find weighted inverse squared distances
+      for center, square_radius in zip(origins, radii**2):
+          dist_square = np.sum((coordinates - center) ** 2, -1)
+          # if coordinate is at origin, set to 2/squared_radius to include it
+          inv_dist_square = np.where(dist_square!= 0, 1/dist_squared, 2/squared_radius)
+          box += inv_dist_square * squared_radius
 
-              return (box >= 1)
+          return (box >= 1)
 
 
 def random_blobs(
