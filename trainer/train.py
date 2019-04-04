@@ -1,6 +1,7 @@
 """Main module for training super resolution network."""
 
 import argparse
+import json
 import logging
 import os
 
@@ -21,6 +22,7 @@ def train_and_evaluate(
     model_hparams,
     profile_steps,
     save_checkpoint_steps,
+    log_step_count,
 ):
   """Run the training and evaluate using the high level API."""
 
@@ -47,7 +49,7 @@ def train_and_evaluate(
   run_config = tf.estimator.RunConfig()
   run_config = run_config.replace(
     model_dir=output_directory,
-    log_step_count_steps=10,
+    log_step_count_steps=log_step_count,
     save_checkpoints_steps=save_checkpoint_steps
   )
 
@@ -118,6 +120,12 @@ def parse_args():
     default=200,
   )
 
+  parser.add_argument(
+    '--log_step_count',
+    type=int,
+    default=10,
+  )
+
   args, _ = parser.parse_known_args()
 
   return args
@@ -130,8 +138,18 @@ def run_train_and_evaluate(
     train_parse_fns,
     eval_parse_fns,
 ):
-
   args = parse_args()
+
+  logging.info("Using tensorflow {}".format(tf.__version__))
+
+  # Modify `output_dir` for each trial if hyperparameter tuning.
+  output_directory = os.path.join(
+    output_directory,
+    json.loads(
+      os.environ.get('TF_CONFIG', '{}')).get('task', {}).get('trial', '')
+    )
+
+  logging.info("Using `output_directory` {}".format(output_directory))
 
   train_and_evaluate(
     output_directory=output_directory,
@@ -145,4 +163,5 @@ def run_train_and_evaluate(
     model_hparams=hparams,
     profile_steps=args.profile_steps,
     save_checkpoint_steps=args.save_checkpoint_steps,
+    log_step_count=args.log_step_count,
   )
