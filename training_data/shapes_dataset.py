@@ -190,22 +190,22 @@ def random_lines(
   count = np.random.randint(1, max_count + 1)
 
   for _ in range(count):
-      # Get random point on line.
-      origin = [np.random.uniform(0, length) for length in dimensions]
+    # Get random point on line.
+    origin = [np.random.uniform(0, length) for length in dimensions]
 
-      # Random gradient.
-      grad = [np.random.uniform(0, 1) for _ in dimensions]
+    # Random gradient.
+    grad = [np.random.uniform(0, 1) for _ in dimensions]
 
-      # Random radius.
-      radius = np.random.uniform(min_radius, max_radius)
+    # Random radius.
+    radius = np.random.uniform(min_radius, max_radius)
 
-      # Random intensity.
-      intensity = np.random.uniform(min_intensity, max_intensity)
+    # Random intensity.
+    intensity = np.random.uniform(min_intensity, max_intensity)
 
-      # Add line.
-      box += _line(coordinates, origin, grad, radius) * intensity
+    # Add line.
+    box += _line(coordinates, origin, grad, radius) * intensity
 
-      return np.clip(box, a_min=0., a_max=max_intensity)
+  return np.clip(box, a_min=0., a_max=max_intensity)
 
 
 def _meta_blob(
@@ -251,23 +251,23 @@ def _meta_blob(
   relative_positions = sample_spherical(num_centers - 1, ndim)
   for radius, pos in zip(radii[1:], relative_positions):
 
-      # find random origin already in origins to extend from
-      rand_int = np.random.randint(0, len(origins))
+    # find random origin already in origins to extend from
+    rand_int = np.random.randint(0, len(origins))
 
-      # extend in given direction and add to list
-      origins.append(origins[rand_int] + (radius + radii[rand_int]) * pos)
+    # extend in given direction and add to list
+    origins.append(origins[rand_int] + (radius + radii[rand_int]) * pos)
 
-      # stores weighted inverse squared distances
-      box = np.zeros(coordinates.shape[:-1])
+    # stores weighted inverse squared distances
+    box = np.zeros(coordinates.shape[:-1])
 
-      # find weighted inverse squared distances
-      for center, square_radius in zip(origins, radii**2):
-          dist_square = np.sum((coordinates - center) ** 2, -1)
-          # if coordinate is at origin, set to 2/squared_radius to include it
-          inv_dist_square = np.where(dist_square!= 0, 1/dist_squared, 2/squared_radius)
-          box += inv_dist_square * squared_radius
+    # find weighted inverse squared distances
+    for center, square_radius in zip(origins, radii**2):
+      dist_square = np.sum((coordinates - center) ** 2, -1)
+      # if coordinate is at origin, set to 2/squared_radius to include it
+      inv_dist_square = np.where(dist_square!= 0, 1/dist_square, 2/square_radius)
+      box += inv_dist_square * square_radius
 
-          return (box >= 1)
+  return (box >= 1)
 
 
 def random_blobs(
@@ -310,6 +310,8 @@ def random_blobs(
 
   # Array will contain at least one blob, and up to `max_count`.
   count = np.random.randint(1, max_count + 1)
+
+  print(count)
 
   for _ in range(count):
     # Get random initial blob origin.
@@ -367,6 +369,7 @@ def parse_args():
 
   parser.add_argument('--background_noise', dest='background_noise',
                       help='Background noise fraction', type=float,
+                      default=0.,
                       required=False)
 
   args, unknown = parser.parse_known_args()
