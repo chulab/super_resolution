@@ -221,13 +221,18 @@ def model_fn(features, labels, mode, params):
     tf.summary.image("distributions", distributions, 1)
     tf.summary.image("predictions", predictions, 1)
 
+  training_hooks = []
+
+  # Report training failed if loss becomes Nan.
+  training_hooks.append(tf.train.NanTensorHook(loss, fail_on_nan_loss=False))
 
   return tf.estimator.EstimatorSpec(
     mode=mode,
     loss=loss,
     train_op=train_op,
     predictions=predict_output,
-    eval_metric_ops = eval_metric_ops
+    eval_metric_ops=eval_metric_ops,
+    training_hooks=training_hooks,
   )
 
 
