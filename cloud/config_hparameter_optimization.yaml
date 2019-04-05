@@ -1,0 +1,56 @@
+# Configuration for google cloud ml with gpu and hyperparameter optimization.
+
+trainingInput:
+  region: us-west1
+  scaleTier: BASIC_GPU
+  pythonVersion: '3.5'
+  runtimeVersion: '1.13'
+  hyperparameters:
+    goal: MINIMIZE
+    params:
+      - parameterName: learning_rate
+        type: DOUBLE
+        minValue: .0000001
+        maxValue: .001
+        scaleType: UNIT_REVERSE_LOG_SCALE
+      - parameterName: spatial_blocks
+        type: INTEGER
+        minValue: 1
+        maxValue: 10
+      - parameterName: spatial_scales
+        type: CATEGORICAL
+        categoricalValues:
+          - '1'
+          - '4'
+          - '8'
+          - '1,2,4'
+          - '2,4,8'
+          - '4,8,16'
+      - parameterName: filters_per_scale
+        type: INTEGER
+        minValue: 1
+        maxValue: 32
+      - parameterName: spatial_kernel_size
+        type: INTEGER
+        minValue: 2
+        maxValue: 5
+      - parameterName: residual_blocks
+        type: INTEGER
+        minValue: 1
+        maxValue: 10
+        scaleType: NONE
+      - parameterName: residual_channels
+        type: DISCRETE
+        discreteValues:
+          - 8
+          - 32
+          - 64
+      - parameterName: residual_kernel_size
+        type: INTEGER
+        minValue: 1
+        maxValue: 5
+    maxTrials: !!int 50
+    maxParallelTrials: !!int 5
+    hyperparameterMetricTag: rms
+    enableTrialEarlyStopping: TRUE
+    algorithm: ALGORITHM_UNSPECIFIED
