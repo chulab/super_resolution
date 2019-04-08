@@ -17,7 +17,7 @@ gcloud ml-engine jobs submit training $JOB_NAME \
     --staging-bucket $STAGING_BUCKET \
     --module-name trainer.train_basic_model\
     --package-path trainer/ \
-    --config cloud/config_hparameter_optimization.yaml \
+    --config cloud/config_gpu.yaml \
     -- \
     --cloud_train \
     --mode TRAIN \
@@ -29,8 +29,9 @@ gcloud ml-engine jobs submit training $JOB_NAME \
     --train_steps 10000 \
     --batch_size 5 \
     --prefetch 2 \
-    --interleave_cycle_length 5 \
+    --interleave_cycle_length 6 \
     --num_parallel_reads 5 \
     --profile_steps 400 \
     --log_step_count 20 \
-    --hparams learning_rate=.001,residual_blocks=8,residual_channels=64,residual_kernel_size=4,residual_scale=.1,spatial_blocks=4,spatial_kernel_size=4,spatial_scales=[2,4,8,16]
+    --hparams learning_rate=.00015,conv_blocks=2,residual_blocks=8,residual_channels=64,residual_kernel_size=3,residual_scale=.1,spatial_blocks=5,spatial_kernel_size=5,spatial_scales=[1,2] \
+    --warm_start_from_dir ''

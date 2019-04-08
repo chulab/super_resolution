@@ -18,8 +18,9 @@ def train_and_evaluate(
     eval_steps,
     train_parse_fns,
     eval_parse_fns,
-    estimator_fn,
+    model_fn,
     model_hparams,
+    warm_start_from,
     profile_steps,
     save_checkpoint_steps,
     log_step_count,
@@ -32,6 +33,7 @@ def train_and_evaluate(
     return input.make_input_fn(
       dataset_directory=train_dataset_directory,
       parse_fns=train_parse_fns,
+      mode=input._TRAIN
     )
 
   def eval_input():
@@ -39,7 +41,8 @@ def train_and_evaluate(
     """
     return input.make_input_fn(
       dataset_directory=eval_dataset_directory,
-      parse_fns=eval_parse_fns
+      parse_fns=eval_parse_fns,
+      mode=input._EVAL
     )
 
   tf_config = os.environ.get('TF_CONFIG')
@@ -53,9 +56,11 @@ def train_and_evaluate(
     save_checkpoints_steps=save_checkpoint_steps
   )
 
-  estimator = estimator_fn(
+  estimator = tf.estimator.Estimator(
+    model_fn=model_fn,
     config=run_config,
     params=model_hparams,
+    warm_start_from=warm_start_from
   )
 
   # Hook to log step timing.
@@ -123,7 +128,7 @@ def parse_args():
   parser.add_argument(
     '--log_step_count',
     type=int,
-    default=10,
+    default=20,
   )
 
   args, _ = parser.parse_known_args()
@@ -133,10 +138,11 @@ def parse_args():
 
 def run_train_and_evaluate(
     output_directory,
-    estimator_fn,
+    model_fn,
     hparams,
     train_parse_fns,
     eval_parse_fns,
+    warm_start_from=None,
 ):
   args = parse_args()
 
@@ -159,8 +165,9 @@ def run_train_and_evaluate(
     eval_steps=args.eval_steps,
     train_parse_fns=train_parse_fns,
     eval_parse_fns=eval_parse_fns,
-    estimator_fn=estimator_fn,
+    model_fn=model_fn,
     model_hparams=hparams,
+    warm_start_from=warm_start_from,
     profile_steps=args.profile_steps,
     save_checkpoint_steps=args.save_checkpoint_steps,
     log_step_count=args.log_step_count,
