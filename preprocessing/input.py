@@ -8,9 +8,14 @@ from typing import Callable, List
 
 import tensorflow as tf
 
+_TRAIN = "TRAIN"
+_EVAL = "EVAL"
+_PRED = "PRED"
+
 
 def input_fn(
     dataset_directory: str,
+    mode: str,
     parse_fns: List[Callable],
     parallel_calls: List[int],
     interleave_cycle_length: int = 1,
@@ -45,7 +50,11 @@ def input_fn(
     logging.info("Looking for files with glob {}".format(file_pattern))
 
     # Makes `Dataset` of file names.
-    files = tf.data.Dataset.list_files(file_pattern, shuffle=True)
+    files = tf.data.Dataset.list_files(file_pattern, shuffle=False)
+
+    # Shuffle only if training for reproducability in `eval` and `predict`.
+    if mode == _TRAIN:
+      files=files.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=100))
 
     # Generates `Dataset` from each file and interleaves.
     dataset = files.apply(
@@ -109,12 +118,14 @@ def parse_args():
 def make_input_fn(
     dataset_directory,
     parse_fns,
+    mode,
   ):
 
   args = parse_args()
 
   return input_fn(
     dataset_directory=dataset_directory,
+    mode=mode,
     parse_fns=parse_fns,
     parallel_calls=[args.parallel_calls] * len(parse_fns),
     interleave_cycle_length=args.interleave_cycle_length,
