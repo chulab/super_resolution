@@ -50,89 +50,92 @@ def network(input_layer, params):
       test mode. (Drop out is turned on during training but off during
       eval.)
   """
-  logging.info("Before feeding model {}".format(input_layer))
+  with tf.name_scope("phase_model"):
+    logging.info("Before feeding model {}".format(input_layer))
 
-  # Split along `angle` axis so each image now has shape `[B, H, W, 1]`.
-  obs_nets = tf.keras.layers.Lambda(tf.split,
-    arguments={'axis': 3, 'num_or_size_splits': input_layer.shape[3]}
-                                   ).apply(input_layer)
+    # Split along `angle` axis so each image now has shape `[B, H, W, 1]`.
+    obs_nets = tf.keras.layers.Lambda(tf.split,
+      arguments={'axis': 3, 'num_or_size_splits': input_layer.shape[3]}
+                                     ).apply(input_layer)
 
-  logging.info("obs_nets after split {}".format(obs_nets))
+    logging.info("obs_nets after split {}".format(obs_nets))
 
-  # Apply `downsample_module` to each image.
-  downsample_module = blocks.donwnsampleModule(
-    obs_nets[0].shape[1:],
-    downsample_factor=params.downsample_factor,
-    depth_multiplier=params.downsample_depth_multiplier,
-    stride=params.downsample_stride,
-  )
+    # Apply `downsample_module` to each image.
+    downsample_module = blocks.donwnsampleModule(
+      obs_nets[0].shape[1:],
+      downsample_factor=params.downsample_factor,
+      depth_multiplier=params.downsample_depth_multiplier,
+      stride=params.downsample_stride,
+    )
 
-  # Downsample module
-  obs_nets = [downsample_module(input) for input in obs_nets]
+    # Downsample module
+    obs_nets = [downsample_module(input) for input in obs_nets]
 
-  print("obs_nets after downsample moduel {}".format(obs_nets))
+    print("obs_nets after downsample module {}".format(obs_nets))
 
-  # Rotate output so all features are co-registered.
-  obs_nets = [
-    tf.keras.layers.Lambda(tf.contrib.image.rotate, arguments={
-      'angles': -1 * angle, 'interpolation': "BILINEAR"})(tensor)
-    for tensor, angle in zip(obs_nets, params.observation_spec.angles)]
+    # Rotate output so all features are co-registered.
+    obs_nets = [
+      tf.keras.layers.Lambda(
+        tf.contrib.image.rotate,
+        arguments={'angles': -1 * angle, 'interpolation': "BILINEAR"},
+        name="rotate_{}".format(angle))(tensor)
+      for tensor, angle in zip(obs_nets, params.observation_spec.angles)]
 
-  print("obs_nets after rotate {}".format(obs_nets))
+    print("obs_nets after rotate {}".format(obs_nets))
 
-  # Concatenate angle features.
-  network = tf.keras.layers.Concatenate().apply(obs_nets)
+    # Concatenate angle features.
+    network = tf.keras.layers.Concatenate().apply(obs_nets)
 
-  print("network after concat {}".format(network))
+    print("network after concat {}".format(network))
 
-  for _ in range(params.conv_blocks):
+    for _ in range(params.conv_blocks):
+      network = tf.keras.layers.SeparableConv2D(
+        filters=params.conv_block_filters,
+        depth_multiplier=2,
+        kernel_size=params.conv_block_kernel_size,
+        padding="same",
+        use_bias=True,
+        activation=tf.nn.leaky_relu
+      ).apply(network)
+
+    for _ in range(params.spatial_blocks):
+      network = blocks.spatial_block(
+        network,
+        scales=params.spatial_scales,
+        filters_per_scale=params.filters_per_scale,
+        kernel_size=params.spatial_kernel_size,
+        activation=tf.nn.leaky_relu,
+      )
+
     network = tf.keras.layers.SeparableConv2D(
-      filters=params.conv_block_filters,
-      depth_multiplier=2,
-      kernel_size=params.conv_block_kernel_size,
+      filters=params.residual_channels,
+      kernel_size=[3, 3],
+      dilation_rate=1,
       padding="same",
-      use_bias=True,
       activation=tf.nn.leaky_relu
     ).apply(network)
 
-  for _ in range(params.spatial_blocks):
-    network = blocks.spatial_block(
-      network,
-      scales=params.spatial_scales,
-      filters_per_scale=params.filters_per_scale,
-      kernel_size=params.spatial_kernel_size,
-      activation=tf.nn.leaky_relu,
-    )
+    for _ in range(params.residual_blocks):
+      network = blocks.residual_block(
+        network,
+        channels=params.residual_channels,
+        kernel_size=params.residual_kernel_size,
+        residual_scale=params.residual_scale,
+      )
 
-  network = tf.keras.layers.SeparableConv2D(
-    filters=params.residual_channels,
-    kernel_size=[3, 3],
-    dilation_rate=1,
-    padding="same",
-    activation=tf.nn.leaky_relu
-  ).apply(network)
+    logging.info("network after residual {}".format(network))
 
-  for _ in range(params.residual_blocks):
-    network = blocks.residual_block(
-      network,
-      channels=params.residual_channels,
-      kernel_size=params.residual_kernel_size,
-      residual_scale=params.residual_scale,
-    )
+    # Upsample.
+    for i in range(params.downsample_factor):
+      network = blocks.upsampleBlock(
+        network, kernel_size=[5, 5], stride=params.downsample_stride)
 
-  logging.info("network after residual {}".format(network))
+    logging.info("network after upsample {}".format(network))
 
-  # Upsample.
-  for i in range(params.downsample_factor):
-    network = blocks.upsampleBlock(
-      network, kernel_size=[5, 5], stride=params.downsample_stride)
+    network = tf.keras.layers.SeparableConv2D(
+      1, kernel_size=(1, 1), padding="same").apply(network)
 
-  logging.info("network after upsample {}".format(network))
-
-  network = tf.keras.layers.SeparableConv2D(
-    1, kernel_size=(1, 1), padding="same").apply(network)
-
-  return network
+    return network
 
 
 def model_fn(features, labels, mode, params):
@@ -260,7 +263,7 @@ def input_fns_(
   fns.append(preprocess.check_for_nan)
 
   # Select single frequency.
-  fns.append(preprocess.select_random_frequency)
+  fns.append(preprocess.select_frequency(0))
 
   fns.append(preprocess.swap)
 
