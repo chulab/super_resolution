@@ -49,21 +49,33 @@ def input_fn(
     file_pattern = os.path.join(dataset_directory, file_signature)
     logging.info("Looking for files with glob {}".format(file_pattern))
 
-    # Makes `Dataset` of file names.
-    files = tf.data.Dataset.list_files(file_pattern, shuffle=False)
-
     # Shuffle only if training for reproducability in `eval` and `predict`.
     if mode == _TRAIN:
+      # Makes `Dataset` of file names.
+      files = tf.data.Dataset.list_files(file_pattern, shuffle=True)
+
       files=files.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=100))
 
-    # Generates `Dataset` from each file and interleaves.
-    dataset = files.apply(
-      tf.data.experimental.parallel_interleave(
-      lambda filename: tf.data.TFRecordDataset(filename),
-      cycle_length=interleave_cycle_length,
-      sloppy=True,
+      # Generates `Dataset` from each file and interleaves.
+      dataset = files.apply(
+        tf.data.experimental.parallel_interleave(
+        lambda filename: tf.data.TFRecordDataset(filename),
+        cycle_length=interleave_cycle_length,
+        sloppy=True,
+        )
       )
-    )
+    else:
+      # Makes `Dataset` of file names.
+      files = tf.data.Dataset.list_files(file_pattern, shuffle=False)
+
+      # Do not use sloppy parsing on eval data.
+      dataset = files.apply(
+        tf.data.experimental.parallel_interleave(
+          lambda filename: tf.data.TFRecordDataset(filename),
+          cycle_length=interleave_cycle_length,
+          sloppy=False,
+        )
+      )
 
     # Extract data and apply preprocessing.
     for parse_fn, parallel_calls in zip(parse_fns, parallel_calls):

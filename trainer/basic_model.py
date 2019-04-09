@@ -23,6 +23,7 @@ def make_hparams() -> tf.contrib.training.HParams:
     observation_spec=None,
     conv_blocks=1,
     conv_block_kernel_size=5,
+    conv_filters=72,
     spatial_blocks=1,
     spatial_scales=(1,),
     filters_per_scale=8,
@@ -52,7 +53,7 @@ def network(input_layer, params):
     network = input_layer
     for _ in range(params.conv_blocks):
       network = tf.keras.layers.SeparableConv2D(
-        filters=72,
+        filters=params.conv_filters,
         depth_multiplier=2,
         kernel_size=params.conv_block_kernel_size,
         padding="same",
