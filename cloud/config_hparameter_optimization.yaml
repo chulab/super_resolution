@@ -12,7 +12,7 @@ trainingInput:
         type: DOUBLE
         minValue: .0000001
         maxValue: .001
-        scaleType: UNIT_REVERSE_LOG_SCALE
+        scaleType: UNIT_LOG_SCALE
       - parameterName: spatial_blocks
         type: INTEGER
         minValue: 1

@@ -16,7 +16,7 @@ OUTPUT_PATH=$JOB_DIR
 gcloud ml-engine jobs submit training $JOB_NAME \
     --job-dir $JOB_DIR \
     --staging-bucket $STAGING_BUCKET \
-    --module-name trainer.train_basic_model\
+    --module-name trainer.train_basic_model_phase\
     --package-path trainer/ \
     --config cloud/config_gpu.yaml \
     -- \
@@ -35,19 +35,19 @@ gcloud ml-engine jobs submit training $JOB_NAME \
     --profile_steps 400 \
     --log_step_count 20 \
         --hparams \
-    learning_rate=.00008,\
-    downsample_factor=4,
-    downsample_depth_multiplier=3,
-    downsample_stride=2,
-    conv_blocks=2,\
-    spatial_blocks=5,\
-    spatial_kernel_size=5,\
-    spatial_scales=[1,2] \
-    residual_blocks=8,\
-    residual_channels=64,\
-    residual_kernel_size=3,\
-    residual_scale=.1,\
-    distribution_blur_sigma=5e-5\
+learning_rate=.00001,\
+downsample_factor=3,\
+downsample_depth_multiplier=3,\
+downsample_stride=2,\
+conv_blocks=2,\
+spatial_blocks=5,\
+spatial_kernel_size=5,\
+spatial_scales=[1,2,4,8],\
+residual_blocks=8,\
+residual_channels=64,\
+residual_kernel_size=3,\
+residual_scale=.1,\
+distribution_blur_sigma=5e-5\
 
 
 
