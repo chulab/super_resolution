@@ -201,6 +201,21 @@ def select_random_frequency(distribution, observation):
   return distribution, observation
 
 
+def select_frequency(frequency_index):
+
+  def select_frequency_(distribution, observation):
+
+    # Take index. `observation` has shape `[A, H, W]`.
+    observation = observation[..., frequency_index]
+
+    # Swap axes. `observation` has shape `[H, W, A]`.
+    observation = tf.transpose(observation, (1, 2, 0))
+
+    return distribution, observation
+
+  return select_frequency_
+
+
 def swap(distribution, observation):
   return observation, distribution
 

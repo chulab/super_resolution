@@ -13,17 +13,22 @@ from preprocessing import preprocess
 from simulation import create_observation_spec
 from trainer import metrics
 from trainer import blocks
+from trainer import basic_model
 from utils import array_utils
 
 
 def make_hparams() -> tf.contrib.training.HParams:
   """Create a HParams object specifying model hyperparameters."""
   return tf.contrib.training.HParams(
+    distribution_blur_sigma=1e-5,
     learning_rate=0.001,
     observation_spec=None,
+    downsample_factor=2,
+    downsample_depth_multiplier=2,
+    downsample_stride=2,
     conv_blocks=1,
-    conv_block_kernel_size=5,
-    conv_filters=72,
+    conv_block_kernel_size=3,
+    conv_block_filters=72,
     spatial_blocks=1,
     spatial_scales=(1,),
     filters_per_scale=8,
@@ -32,7 +37,6 @@ def make_hparams() -> tf.contrib.training.HParams:
     residual_channels=32,
     residual_kernel_size=3,
     residual_scale=.1,
-    pool_downsample=10,
   )
 
 
@@ -46,14 +50,47 @@ def network(input_layer, params):
       test mode. (Drop out is turned on during training but off during
       eval.)
   """
-  logging.info("Before feeding model {}".format(input_layer))
+  with tf.name_scope("phase_model"):
+    logging.info("Before feeding model {}".format(input_layer))
 
-  with tf.variable_scope("Model"):
+    # Split along `angle` axis so each image now has shape `[B, H, W, 1]`.
+    obs_nets = tf.keras.layers.Lambda(tf.split,
+      arguments={'axis': 3, 'num_or_size_splits': input_layer.shape[3]}
+                                     ).apply(input_layer)
 
-    network = input_layer
+    logging.info("obs_nets after split {}".format(obs_nets))
+
+    # Apply `downsample_module` to each image.
+    downsample_module = blocks.donwnsampleModule(
+      obs_nets[0].shape[1:],
+      downsample_factor=params.downsample_factor,
+      depth_multiplier=params.downsample_depth_multiplier,
+      stride=params.downsample_stride,
+    )
+
+    # Downsample module
+    obs_nets = [downsample_module(input) for input in obs_nets]
+
+    print("obs_nets after downsample module {}".format(obs_nets))
+
+    # Rotate output so all features are co-registered.
+    obs_nets = [
+      tf.keras.layers.Lambda(
+        tf.contrib.image.rotate,
+        arguments={'angles': -1 * angle, 'interpolation': "BILINEAR"},
+        name="rotate_{}".format(angle))(tensor)
+      for tensor, angle in zip(obs_nets, params.observation_spec.angles)]
+
+    print("obs_nets after rotate {}".format(obs_nets))
+
+    # Concatenate angle features.
+    network = tf.keras.layers.Concatenate().apply(obs_nets)
+
+    print("network after concat {}".format(network))
+
     for _ in range(params.conv_blocks):
       network = tf.keras.layers.SeparableConv2D(
-        filters=params.conv_filters,
+        filters=params.conv_block_filters,
         depth_multiplier=2,
         kernel_size=params.conv_block_kernel_size,
         padding="same",
@@ -86,13 +123,17 @@ def network(input_layer, params):
         residual_scale=params.residual_scale,
       )
 
-    network = tf.keras.layers.Conv2D(
-      filters=1,
-      kernel_size=[1, 1],
-      dilation_rate=1,
-      padding="same",
-      activation=tf.nn.leaky_relu,
-    ).apply(network)
+    logging.info("network after residual {}".format(network))
+
+    # Upsample.
+    for i in range(params.downsample_factor):
+      network = blocks.upsampleBlock(
+        network, kernel_size=[5, 5], stride=params.downsample_stride)
+
+    logging.info("network after upsample {}".format(network))
+
+    network = tf.keras.layers.SeparableConv2D(
+      1, kernel_size=(1, 1), padding="same").apply(network)
 
     return network
 
@@ -119,32 +160,17 @@ def model_fn(features, labels, mode, params):
   logging.info("`distributions` tensor recieved in model is "
                 "{}".format(distributions))
 
-  distributions, observations = preprocess.hilbert(hilbert_axis=2)(distributions, observations)
-
+  # `distributions` now has shape `[B, H, W, 1]`
   distributions = distributions[ ..., tf.newaxis]
 
-  distributions = tf.keras.layers.AveragePooling2D(params.pool_downsample).apply(distributions)
-
-  angles = params.observation_spec.angles
-
-  observations = array_utils.reduce_split_tensor(observations, 1)
-  observation_pooling_layer = tf.keras.layers.AveragePooling2D(params.pool_downsample)
-  observations = [observation_pooling_layer.apply(o)[:, tf.newaxis]
-                  for o in observations]
-
-  observations = tf.keras.layers.Concatenate(axis=1).apply(observations)
-
-  logging.info("observations after pooling {}".format(observations))
-
-  observations = tensor_utils.rotate_tensor(
-    observations,
-    tf.convert_to_tensor([-1 * angle for angle in angles]),
-    1
+  _distribution_blur = preprocess.imageBlur(
+    grid_pitch=params.observation_spec.grid_dimension,
+    sigma_blur=params.distribution_blur_sigma,
+    kernel_size=2 * params.distribution_blur_sigma,
+    blur_channels=1,
   )
 
-  observations = tensor_utils.combine_batch_into_channels(observations, 0)[0]
-
-  logging.info("observations after rotation {}".format(observations))
+  distributions = _distribution_blur.blur(distributions)
 
   # Run observations through CNN.
   predictions = network(observations, params)
@@ -163,8 +189,7 @@ def model_fn(features, labels, mode, params):
 
   # Loss. Compare output of nn to original images.
   with tf.variable_scope("loss"):
-    difference_squared = (predictions - distributions) ** 2
-    l2_loss = tf.reduce_sum(difference_squared)
+    l2_loss = tf.reduce_sum((predictions - distributions) ** 2)
     loss = l2_loss
 
   with tf.variable_scope("optimizer"):
@@ -203,7 +228,6 @@ def model_fn(features, labels, mode, params):
     tf.summary.image("averaged_observation", averaged_observation, 1)
     tf.summary.image("distributions", distributions, 1)
     tf.summary.image("predictions", predictions, 1)
-    tf.summary.image("difference", difference_squared, 1)
 
   training_hooks = []
 
@@ -237,6 +261,9 @@ def input_fns_(
 
   # Check for Nan.
   fns.append(preprocess.check_for_nan)
+
+  # Select single frequency.
+  fns.append(preprocess.select_frequency(0))
 
   fns.append(preprocess.swap)
 

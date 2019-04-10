@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from simulation import create_observation_spec
 
-from trainer import basic_model as model
+from trainer import basic_model_phase as model
 from trainer import train
 
 from utils import logging_utils
@@ -56,42 +56,6 @@ def parse_args():
     default=''
   )
 
-  ## HPARAMETER TUNING ARGS
-  parser.add_argument(
-    '--learning_rate',
-    type=float,
-  )
-  parser.add_argument(
-    '--spatial_blocks',
-    type=int,
-  )
-  parser.add_argument(
-    '--spatial_scales',
-    help='Comma delimited list of spatial scales',
-    type=lambda s: [int(scale) for scale in s.split(',')],
-  )
-  parser.add_argument(
-    '--spatial_kernel_size',
-    type=int,
-  )
-  parser.add_argument(
-    '--filters_per_scale',
-    type=int,
-  )
-  parser.add_argument(
-    '--residual_blocks',
-    type=int,
-  )
-  parser.add_argument(
-    '--residual_channels',
-    type=int,
-  )
-  parser.add_argument(
-    '--residual_kernel_size',
-    type=int,
-  )
-
-
   parser.add_argument('--cloud_train', action='store_true')
   parser.set_defaults(cloud_train=False)
 
@@ -116,17 +80,6 @@ def main():
   hparams.parse(args.hparams)
   # Must manually replace `observation_spec`.
   hparams.observation_spec=observation_spec
-
-  # PARSE HYPERPARAMETER TUNING ARGS.
-  if args.learning_rate is not None:
-    hparams.learning_rate = args.learning_rate
-    hparams.spatial_blocks = args.spatial_blocks
-    hparams.spatial_scales = args.spatial_scales
-    hparams.filters_per_scale = args.filters_per_scale
-    hparams.spatial_kernel_size = args.spatial_kernel_size
-    hparams.residual_blocks = args.residual_blocks
-    hparams.residual_channels = args.residual_channels
-    hparams.residual_kernel_size = args.residual_kernel_size
 
   logging.info("HParams {}".format(hparams))
 

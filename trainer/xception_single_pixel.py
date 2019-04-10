@@ -3,7 +3,6 @@
 import argparse
 import logging
 from typing import Tuple
-import numpy as np
 
 import tensorflow as tf
 
@@ -11,8 +10,6 @@ from simulation import tensor_utils
 
 from preprocessing import preprocess
 from simulation import create_observation_spec
-from trainer import metrics
-from trainer import blocks
 from utils import array_utils
 
 
@@ -20,81 +17,49 @@ def make_hparams() -> tf.contrib.training.HParams:
   """Create a HParams object specifying model hyperparameters."""
   return tf.contrib.training.HParams(
     learning_rate=0.001,
-    observation_spec=None,
-    conv_blocks=1,
-    conv_block_kernel_size=5,
-    conv_filters=72,
-    spatial_blocks=1,
-    spatial_scales=(1,),
-    filters_per_scale=8,
-    spatial_kernel_size=3,
-    residual_blocks=1,
-    residual_channels=32,
-    residual_kernel_size=3,
-    residual_scale=.1,
-    pool_downsample=10,
+    observation_pool_downsample=None,
+    distribution_pool_downsample=10,
+    predict_pixel=[1,1],
+    use_hilbert=True,
   )
 
 
 def network(input_layer, params):
-  """Defines network.
 
-  Args:
-    `input_layer`: `tf.Tensor` node which outputs shapes `[b, h, w, c]`.
-    These represent observations.
-    training: Bool which sets whether network is in a training or evaluation/
-      test mode. (Drop out is turned on during training but off during
-      eval.)
-  """
-  logging.info("Before feeding model {}".format(input_layer))
+  # reduce number of channels.
+  network = tf.keras.layers.SeparableConv2D(
+    filters=3,
+    kernel_size=5,
+    strides=1
+  ).apply(input_layer)
 
-  with tf.variable_scope("Model"):
+  with tf.name_scope('xception'):
+    xception_model = tf.keras.applications.xception.Xception(
+      include_top=False,
+      weights=None,
+      input_tensor=network,
+      pooling='max',
+    )
+    network = xception_model.output
 
-    network = input_layer
-    for _ in range(params.conv_blocks):
-      network = tf.keras.layers.SeparableConv2D(
-        filters=params.conv_filters,
-        depth_multiplier=2,
-        kernel_size=params.conv_block_kernel_size,
-        padding="same",
-        use_bias=True,
-        activation=tf.nn.leaky_relu
-      ).apply(network)
+  print("xception_model output {}".format(network))
 
-    for _ in range(params.spatial_blocks):
-      network = blocks.spatial_block(
-        network,
-        scales=params.spatial_scales,
-        filters_per_scale=params.filters_per_scale,
-        kernel_size=params.spatial_kernel_size,
-        activation=tf.nn.leaky_relu,
-      )
+  network = tf.keras.layers.Flatten().apply(network)
 
-    network = tf.keras.layers.SeparableConv2D(
-      filters=params.residual_channels,
-      kernel_size=[3, 3],
-      dilation_rate=1,
-      padding="same",
-      activation=tf.nn.leaky_relu
-    ).apply(network)
+  network = tf.keras.layers.Dense(
+    20,
+    activation=tf.nn.leaky_relu,
+    use_bias=True,
+  ).apply(network)
 
-    for _ in range(params.residual_blocks):
-      network = blocks.residual_block(
-        network,
-        channels=params.residual_channels,
-        kernel_size=params.residual_kernel_size,
-        residual_scale=params.residual_scale,
-      )
+  network = tf.keras.layers.Dense(
+    1,
+    activation=None,
+    use_bias=True,
+  ).apply(network)
 
-    network = tf.keras.layers.Conv2D(
-      filters=1,
-      kernel_size=[1, 1],
-      dilation_rate=1,
-      padding="same",
-      activation=tf.nn.leaky_relu,
-    ).apply(network)
 
-    return network
+  return network
 
 
 def model_fn(features, labels, mode, params):
@@ -119,35 +84,53 @@ def model_fn(features, labels, mode, params):
   logging.info("`distributions` tensor recieved in model is "
                 "{}".format(distributions))
 
-  distributions, observations = preprocess.hilbert(hilbert_axis=2)(distributions, observations)
+  if params.use_hilbert:
+    distributions, observations = preprocess.hilbert(hilbert_axis=1)(distributions, observations)
 
   distributions = distributions[ ..., tf.newaxis]
 
-  distributions = tf.keras.layers.AveragePooling2D(params.pool_downsample).apply(distributions)
+  distributions = tf.keras.layers.AveragePooling2D(
+    params.distribution_pool_downsample).apply(distributions)
 
-  angles = params.observation_spec.angles
+  if params.observation_pool_downsample:
+    observations = tf.keras.layers.AveragePooling2D(
+      params.observation_pool_downsample).apply(observations)
+    logging.info("observations after pooling {}".format(observations))
 
-  observations = array_utils.reduce_split_tensor(observations, 1)
-  observation_pooling_layer = tf.keras.layers.AveragePooling2D(params.pool_downsample)
-  observations = [observation_pooling_layer.apply(o)[:, tf.newaxis]
-                  for o in observations]
+  obs_shape = observations.shape
 
-  observations = tf.keras.layers.Concatenate(axis=1).apply(observations)
-
-  logging.info("observations after pooling {}".format(observations))
-
-  observations = tensor_utils.rotate_tensor(
+  # Split along `channels` axis.
+  observations = tf.split(
     observations,
-    tf.convert_to_tensor([-1 * angle for angle in angles]),
-    1
+    axis=-1,
+    num_or_size_splits=len(params.observation_spec.angles)
   )
 
-  observations = tensor_utils.combine_batch_into_channels(observations, 0)[0]
+  logging.info("observations after split {}".format(observations))
 
+  observations = [
+    tf.keras.layers.Lambda(
+      tf.contrib.image.rotate,
+      arguments={'angles': -1 * angle, 'interpolation': "BILINEAR"},
+      name="rotate_{}".format(angle))(tensor)
+    for tensor, angle in zip(observations, params.observation_spec.angles)]
   logging.info("observations after rotation {}".format(observations))
+
+  observations = tf.keras.layers.Concatenate(axis=-1).apply(observations)
+
+  # Have to set shape as it is lost in `rotation`.
+  observations.set_shape(obs_shape)
+
+  tf.summary.image("observation", observations[..., 0, tf.newaxis], 1)
+  tf.summary.image("distributions", distributions, 1)
 
   # Run observations through CNN.
   predictions = network(observations, params)
+
+  logging.info("params.predict_pixel {}".format(params.predict_pixel))
+
+  # Select pixel to predict.
+  distributions = distributions[:, params.predict_pixel[0], params.predict_pixel[1], :]
 
   with tf.variable_scope("predictions"):
     predict_output = {
@@ -184,31 +167,17 @@ def model_fn(features, labels, mode, params):
     rms = tf.metrics.root_mean_squared_error(
       labels=distributions, predictions=predictions)
 
-    ssim = metrics.ssim(distributions, predictions, max_val=5)
-    psnr = metrics.psnr(distributions, predictions, max_val=5)
-    total_noise = metrics.total_variation(predictions)
+    # Compare RMS for averaged image at `prediction_pixel`.
+    averaged_observation = tf.reduce_mean(observations, axis=-1, keepdims=True)
+    averaged_observation_pixel = averaged_observation[:, params.predict_pixel[0], params.predict_pixel[1], :]
+
+    averaged_rms = tf.metrics.root_mean_squared_error(
+      labels=distributions, predictions=averaged_observation_pixel)
 
     eval_metric_ops = {
       "rms": rms,
-      "ssim": ssim,
-      "psnr": psnr,
-      "total_noise": total_noise,
-    }
-
-    # Average image along `channel` axis. This corresponds to previous SOA.
-    averaged_observation = tf.reduce_mean(observations, axis=-1, keepdims=True)
-
-    # Add image summaries.
-    tf.summary.image("observation", observations[..., 0, tf.newaxis], 1)
-    tf.summary.image("averaged_observation", averaged_observation, 1)
-    tf.summary.image("distributions", distributions, 1)
-    tf.summary.image("predictions", predictions, 1)
-    tf.summary.image("difference", difference_squared, 1)
-
-  training_hooks = []
-
-  # Report training failed if loss becomes Nan.
-  training_hooks.append(tf.train.NanTensorHook(loss, fail_on_nan_loss=False))
+      "averaged_rms": averaged_rms,
+    }    # Add image summaries.
 
   return tf.estimator.EstimatorSpec(
     mode=mode,
@@ -216,7 +185,6 @@ def model_fn(features, labels, mode, params):
     train_op=train_op,
     predictions=predict_output,
     eval_metric_ops=eval_metric_ops,
-    training_hooks=training_hooks,
   )
 
 
@@ -237,6 +205,9 @@ def input_fns_(
 
   # Check for Nan.
   fns.append(preprocess.check_for_nan)
+
+  # Take a single frequency.
+  fns.append(preprocess.select_frequency(0))
 
   fns.append(preprocess.swap)
 

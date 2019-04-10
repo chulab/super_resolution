@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from simulation import create_observation_spec
 
-from trainer import basic_model as model
+from trainer import basic_model_single_pixel as model
 from trainer import train
 
 from utils import logging_utils

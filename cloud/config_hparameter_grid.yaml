@@ -1,0 +1,22 @@
+# Configuration for google cloud ml with gpu and hyperparameter optimization.
+
+trainingInput:
+  region: us-west1
+  scaleTier: BASIC_GPU
+  pythonVersion: '3.5'
+  runtimeVersion: '1.13'
+  hyperparameters:
+    goal: MINIMIZE
+    params:
+      - parameterName: learning_rate
+        type: DISCRETE
+        discreteValues:
+          - .001
+          - .0001
+          - .00001
+          - .000001
+    maxTrials: !!int 4
+    maxParallelTrials: !!int 4
+    hyperparameterMetricTag: rms
+    enableTrialEarlyStopping: TRUE
+    algorithm: GRID_SEARCH

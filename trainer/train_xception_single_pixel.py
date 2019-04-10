@@ -5,19 +5,20 @@ import logging
 import os
 import sys
 
+import tensorflow as tf
+
 # Add `super_resolution` package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from simulation import create_observation_spec
 
-from trainer import angle_only_model as model
+from trainer import xception_single_pixel as model
 from trainer import train
 
 from utils import logging_utils
 
 _PREDICT="PREDICT"
 _TRAIN="TRAIN"
-
 
 def parse_args():
   parser = argparse.ArgumentParser()
@@ -48,10 +49,15 @@ def parse_args():
     default=''
   )
 
+  parser.add_argument(
+    '--warm_start_from_dir',
+    type=str,
+    help='Checkpoint directory to warm start from.',
+    default=''
+  )
 
   parser.add_argument('--cloud_train', action='store_true')
   parser.set_defaults(cloud_train=False)
-
 
   args, _ = parser.parse_known_args()
 
@@ -68,8 +74,6 @@ def main():
     args.observation_spec_path, args.cloud_train
   )
 
-  estimator_fn = model.build_estimator
-
   parse_fns = model.input_fns()
 
   hparams = model.make_hparams()
@@ -79,13 +83,22 @@ def main():
 
   logging.info("HParams {}".format(hparams))
 
+  # Optionally warm start variables.
+  if args.warm_start_from_dir != '':
+    warm_start_from = tf.estimator.WarmStartSettings(
+      args.warm_start_from_dir,
+    )
+  else:
+    warm_start_from=None
+
   if args.mode==_TRAIN:
     train.run_train_and_evaluate(
       output_directory=args.job_dir,
-      estimator_fn=estimator_fn,
+      model_fn=model.model_fn,
       hparams=hparams,
       train_parse_fns=parse_fns,
       eval_parse_fns=parse_fns,
+      warm_start_from=warm_start_from,
     )
 
   if args.mode==_PREDICT:
