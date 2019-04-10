@@ -50,7 +50,7 @@ def downsample_block(x, depth_multiplier=2, kernel_size=5, stride=2):
     return tf.keras.layers.DepthwiseConv2D(
       kernel_size,
       strides=(stride, stride),
-      padding="valid",
+      padding="same",
       use_bias=False,
       activation=None,
       depth_multiplier=depth_multiplier,
@@ -76,7 +76,7 @@ def upsampleBlock(x, filters=64, kernel_size=5, stride=2):
     filters=filters,
     kernel_size=kernel_size,
     strides=(stride, stride),
-    padding="valid",
+    padding="same",
     use_bias=False,
     activation=None,
   ).apply(x)
