@@ -88,6 +88,7 @@ def parse_args():
 
 
 def main():
+  logging.basicConfig(filename='convert_to_envelope.log', level=logging.DEBUG)
 
   args = parse_args()
   logging.info(args)
