@@ -34,7 +34,7 @@ def tfrecord_to_example(
   examples = []
   while True:
     try:
-      example_str = iterator.next()
+      example_str = iterator.get_next()
       example = record_utils._parse_example(example_str)
       example = [i.numpy() for i in example]
       examples.append(example)
