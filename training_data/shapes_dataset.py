@@ -141,8 +141,7 @@ def _line(
 
   # Find projection of position vectors orthogonal to line defined by gradient
   proj_coefficients = np.inner(relative_positions, normalized_grad)
-  grad_matrix = np.ones(coordinates.shape) * normalized_grad
-  proj = np.expand_dims(proj_coefficients, -1) * grad_matrix
+  proj = np.expand_dims(proj_coefficients, -1) * normalized_grad
   ortho_proj = relative_positions - proj
 
   squared_ortho_distance = np.sum(ortho_proj ** 2, -1)
