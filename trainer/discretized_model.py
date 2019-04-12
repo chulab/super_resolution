@@ -3,6 +3,7 @@
 import argparse
 import logging
 from typing import Tuple
+import math
 
 import tensorflow as tf
 
@@ -31,8 +32,12 @@ def make_hparams() -> tf.contrib.training.HParams:
     residual_channels=32,
     residual_kernel_size=3,
     residual_scale=.1,
-    pool_downsample=10,
+    observation_pool_downsample=10,
+    distribution_pool_downsample=10,
     bit_depth=2,
+    count_loss_scale=1.,
+    decay_step=500,
+    decay_rate=.9,
   )
 
 
@@ -97,6 +102,7 @@ def network(input_layer, params, training):
         use_bias=True,
         activation=tf.nn.leaky_relu
       ).apply(network)
+      network = tf.keras.layers.BatchNormalization().apply(network)
 
     for _ in range(params.spatial_blocks):
       network = blocks.spatial_block(
@@ -104,6 +110,7 @@ def network(input_layer, params, training):
         scales=params.spatial_scales,
         filters_per_scale=params.filters_per_scale,
         kernel_size=params.spatial_kernel_size,
+        use_bias=False,
         activation=tf.nn.leaky_relu,
       )
 
@@ -115,6 +122,21 @@ def network(input_layer, params, training):
       activation=tf.nn.leaky_relu
     ).apply(network)
 
+    downsample_factor = (
+      params.distribution_pool_downsample / params.observation_pool_downsample)
+
+    for _ in range(int(math.ceil(math.log(downsample_factor, 2)))):
+      network = tf.keras.layers.SeparableConv2D(
+        filters=params.residual_channels,
+        kernel_size=[3, 3],
+        dilation_rate=1,
+        padding="same",
+        strides=2,
+        activation=tf.nn.leaky_relu
+      ).apply(network)
+      network = tf.keras.layers.BatchNormalization().apply(network)
+
+
     for _ in range(params.residual_blocks):
       network = blocks.residual_block(
         network,
@@ -122,10 +144,39 @@ def network(input_layer, params, training):
         kernel_size=params.residual_kernel_size,
         residual_scale=params.residual_scale,
       )
+      network = tf.keras.layers.BatchNormalization().apply(network)
 
     network = tf.layers.dropout(network, training=training)
 
     return network
+
+
+def gpu_preprocess(observations, distributions, params):
+
+  distributions, observations = preprocess.hilbert(hilbert_axis=2)(distributions, observations)
+
+  distributions = distributions[ ..., tf.newaxis]
+  distributions = tf.keras.layers.AveragePooling2D(
+    params.distribution_pool_downsample).apply(distributions) * (
+      params.distribution_pool_downsample ** 2)
+  distributions = distributions[..., 0]
+
+  angles = params.observation_spec.angles
+
+  observations = tf.split(observations, observations.shape[-1], -1)
+
+  observation_pooling_layer = tf.keras.layers.AveragePooling2D(
+    params.observation_pool_downsample)
+  observations = [
+    observation_pooling_layer.apply(o) for o in observations]
+  print("observations {}".format(observations))
+  observations = [
+    tf.contrib.image.rotate(tensor, -1 * ang, interpolation='BILINEAR')
+    for tensor, ang in zip(observations, angles)
+  ]
+  observations = tf.keras.layers.Concatenate(axis=-1).apply(observations)
+
+  return observations, distributions
 
 
 def model_fn(features, labels, mode, params):
@@ -143,6 +194,8 @@ def model_fn(features, labels, mode, params):
   Returns:
     `tf.Estimator.EstimatorSpec` object.
   """
+  hooks = []
+
   observations = features
   logging.info("`observations` tensor recieved in model is "
                 "{}".format(observations))
@@ -150,41 +203,26 @@ def model_fn(features, labels, mode, params):
   logging.info("`distributions` tensor recieved in model is "
                 "{}".format(distributions))
 
-  distributions, observations = preprocess.hilbert(hilbert_axis=2)(distributions, observations)
+  tf.summary.image("original_distribution", distributions[..., tf.newaxis], 1)
 
-  distributions = distributions[ ..., tf.newaxis]
+  observations, distributions = gpu_preprocess(observations, distributions, params)
 
-  distributions = tf.keras.layers.AveragePooling2D(
-    params.pool_downsample).apply(distributions) * (params.pool_downsample ** 2)
+  logging.info("`observations` tensor after gpu preprocess in model is "
+                "{}".format(observations))
+  logging.info("`distributions` tensor  after gpu preprocess in model is "
+                "{}".format(distributions))
 
-  # remove excess dimension.
-  distributions = tf.squeeze(distributions)
   distributions_quantized = loss_utils.quantize_tensor(
     distributions, params.bit_depth, 0., 4.)
-
-  angles = params.observation_spec.angles
-
-  observations = array_utils.reduce_split_tensor(observations, 1)
-  observation_pooling_layer = tf.keras.layers.AveragePooling2D(params.pool_downsample)
-  observations = [observation_pooling_layer.apply(o)[:, tf.newaxis]
-                  for o in observations]
-
-  observations = tf.keras.layers.Concatenate(axis=1).apply(observations)
-
-  logging.info("observations after pooling {}".format(observations))
-
-  observations = tensor_utils.rotate_tensor(
-    observations,
-    tf.convert_to_tensor([-1 * angle for angle in angles]),
-    1
-  )
-
-  observations = tensor_utils.combine_batch_into_channels(observations, 0)[0]
 
   # Average image along `channel` axis. This corresponds to previous SOA.
   averaged_observation = tf.reduce_mean(observations, axis=-1, keepdims=True)
 
-  logging.info("observations after rotation {}".format(observations))
+  with tf.variable_scope("inputs"):
+    # Add image summaries.
+    for i, angle in enumerate(params.observation_spec.angles):
+      tf.summary.image("obs_angle_{}".format(angle), observations[..., i, tf.newaxis], 1)
+    tf.summary.image("averaged_observation", averaged_observation, 1)
 
   if mode ==  tf.estimator.ModeKeys.TRAIN:
     training = True
@@ -204,6 +242,10 @@ def model_fn(features, labels, mode, params):
     use_bias=False,
   ).apply(predictions)
 
+  logging.info("predictions_quantized {}".format(predictions_quantized))
+  logging.info("distributions_quantized {}".format(distributions_quantized))
+
+
   with tf.variable_scope("predictions"):
     predict_output = {
       "observations": observations,
@@ -215,59 +257,109 @@ def model_fn(features, labels, mode, params):
       predictions=predict_output
     )
 
+  with tf.variable_scope("predictions"):
+    def _logit_to_class(logit):
+      return tf.argmax(logit, -1)
+    distribution_class = _logit_to_class(distributions_quantized)
+    prediction_class = _logit_to_class(predictions_quantized)
+
+    # Visualize output of predictions as categories.
+    tf.summary.tensor_summary("prediction_class", prediction_class)
+
+    # Log fraction nonzero.
+    predicted_nonzero_count = tf.cast(tf.count_nonzero(prediction_class), tf.float32)
+    true_nonzero_count = tf.cast(tf.count_nonzero(distribution_class), tf.float32)
+    true_nonzero_fraction = true_nonzero_count / tf.cast(tf.size(prediction_class), tf.float32)
+    nonzero_fraction = predicted_nonzero_count / tf.cast(tf.size(prediction_class), tf.float32)
+    tf.summary.scalar("nonzero_fraction", nonzero_fraction)
+    nonzero_hook = tf.train.LoggingTensorHook(
+      tensors={
+        "predicted_nonzero_fraction": nonzero_fraction,
+        "true_nonzero_fraction": true_nonzero_fraction,
+      },
+      every_n_iter=50,
+    )
+    hooks.append(nonzero_hook)
+
+
+    def _class_to_image(category):
+      return tf.cast(category, tf.float32)[..., tf.newaxis]
+    dist_image = _class_to_image(distribution_class)
+    pred_image = _class_to_image(prediction_class)
+
+    image_hook = tf.train.LoggingTensorHook(
+      tensors={"distribution": dist_image[0, ..., 0],
+               "prediction": pred_image[0, ..., 0],},
+      every_n_iter=50,
+    )
+    hooks.append(image_hook)
+
+    tf.summary.image("distributions", dist_image, 1)
+    tf.summary.image("predictions", pred_image, 1)
+    tf.summary.image("difference", (dist_image - pred_image) ** 2, 1)
+
   # Loss. Compare output of nn to original images.
   with tf.variable_scope("loss"):
-    loss = tf.reduce_mean(
-      tf.nn.softmax_cross_entropy_with_logits(
-        labels=distributions_quantized, logits=predictions_quantized)
+    real_proportion = (tf.reduce_sum(
+        distributions_quantized,
+        axis=[0, 1, 2],
+        keepdims=True,
+        ) + 10) / (tf.cast(tf.size(distributions_quantized), tf.float32) + 10)
+    proportional_weights = 1 / (
+      tf.reduce_sum(
+        (1 / real_proportion) * distributions_quantized,
+        axis=-1)
     )
+    proportion_hook = tf.train.LoggingTensorHook(
+      tensors={"proportional_weights": proportional_weights[0],},
+      every_n_iter=50,
+    )
+    hooks.append(proportion_hook)
+
+    softmax_loss = tf.losses.softmax_cross_entropy(
+      onehot_labels=distributions_quantized,
+      logits=predictions_quantized,
+      weights=proportional_weights,
+    )
+    tf.summary.scalar("softmax_loss", softmax_loss)
+
+    loss = softmax_loss
 
   with tf.variable_scope("optimizer"):
-    optimizer = tf.train.AdamOptimizer(
-      learning_rate=tf.train.exponential_decay(
-        learning_rate=params.learning_rate,
-        global_step=tf.train.get_global_step(),
-        decay_steps=500,
-        decay_rate=0.8,
-        staircase=True,
-      )
+    learning_rate = tf.train.exponential_decay(
+      learning_rate=params.learning_rate,
+      global_step=tf.train.get_global_step(),
+      decay_steps=params.decay_step,
+      decay_rate=params.decay_rate,
+      staircase=False,
     )
+    tf.summary.scalar("learning_rate", learning_rate)
+    optimizer = tf.train.AdamOptimizer(learning_rate)
     train_op = optimizer.minimize(
       loss, global_step=tf.train.get_global_step())
 
-  with tf.variable_scope("inputs"):
-    # Add image summaries.
-    for i, angle in enumerate(params.observation_spec.angles):
-      tf.summary.image("obs_angle_{}".format(angle), observations[..., i, tf.newaxis], 1)
-    tf.summary.image("averaged_observation", averaged_observation, 1)
 
   with tf.variable_scope("metrics"):
-    print(predictions_quantized)
-    print(distributions_quantized)
+
+    batch_accuracy = tf.reduce_mean(
+      tf.cast(tf.equal(distribution_class, prediction_class), tf.float32))
+    tf.summary.scalar("batch_accuracy", batch_accuracy)
+
+
+    accuracy_hook = tf.train.LoggingTensorHook(
+      tensors={"batch_accuracy": batch_accuracy,},
+      every_n_iter=50
+    )
+    hooks.append(accuracy_hook)
 
     accuracy = tf.metrics.accuracy(
       labels=tf.argmax(distributions_quantized, -1),
       predictions=tf.argmax(predictions_quantized, -1)
     )
 
-    tf.summary.scalar("accuracy", accuracy[1])
-
     eval_metric_ops = {
       "accuracy": accuracy,
     }
-
-  with tf.variable_scope("predictions"):
-
-    def _logit_to_image(logit):
-      return tf.cast(tf.argmax(logit, -1), tf.float32)[..., tf.newaxis]
-
-    dist_image = _logit_to_image(distributions_quantized)
-    obs_image = _logit_to_image(predictions_quantized)
-
-    tf.summary.image("distributions", dist_image, 1)
-    tf.summary.image("predictions", obs_image, 1)
-    tf.summary.image("difference", (dist_image - obs_image) ** 2, 1)
-
 
   return tf.estimator.EstimatorSpec(
     mode=mode,
@@ -275,6 +367,7 @@ def model_fn(features, labels, mode, params):
     train_op=train_op,
     predictions=predict_output,
     eval_metric_ops=eval_metric_ops,
+    training_hooks=hooks,
   )
 
 
@@ -295,6 +388,8 @@ def input_fns_(
 
   # Check for Nan.
   fns.append(preprocess.check_for_nan)
+
+  fns.append(preprocess.select_frequency(0))
 
   fns.append(preprocess.swap)
 
