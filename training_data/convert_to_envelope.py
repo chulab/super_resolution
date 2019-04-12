@@ -6,8 +6,10 @@ from typing import List
 import multiprocessing as mp
 import glob
 import sys
+from scipy import signal
 
 import tensorflow as tf
+tf.enable_eager_execution()
 
 # Add `super_resolution` package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,19 +22,22 @@ def rf_to_envelope(
     axis
 ):
   """Applies a hilber transform along `axis` of `tensor`."""
-  return signals.hilbert(tensor, axis)
+  return signal.hilbert(tensor, axis)
 
 
 def tfrecord_to_example(
     tfrecord_file
 ):
   """Loads tfrecord file and returns list of Examples contained."""
-  iterator = tf.python_io.tf_record_iterator(tfrecord_file)
+  dataset = tf.data.TFRecordDataset(tfrecord_file)
+  iterator =  dataset.make_one_shot_iterator()
   examples = []
   while True:
     try:
       example_str = iterator.next()
-      examples.append(record_utils._parse_example(example_str))
+      example = record_utils._parse_example(example_str)
+      example = [i.numpy() for i in example]
+      examples.append(example)
     except tf.errors.OutOfRangeError:
       logging.info("Parsed {} examples.".format(len(examples)))
       break
@@ -44,10 +49,7 @@ def envelope_example(
 ):
   """Parses example and applies envelope function."""
   distribution, observation = example
-  observation = rf_to_envelope(observation)
-  with tf.Session() as sess:
-    distribution, observation = sess.run(
-      [distribution, observation])
+  observation = rf_to_envelope(observation, 1)
   return record_utils._construct_example(
     distribution=distribution, observation=observation)
 
@@ -65,14 +67,14 @@ def save_tfrecord(
 
 def parse_and_save(
     file_path,
-    directory,
+    out_directory,
 ):
   name = os.path.basename(file_path)
   examples = tfrecord_to_example(file_path)
   processed_examples = [
     envelope_example(e) for e in examples
   ]
-  file_name = os.path.join(directory, name)
+  file_name = os.path.join(out_directory, name)
   save_tfrecord(processed_examples, file_name)
 
 
