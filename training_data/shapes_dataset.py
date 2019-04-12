@@ -10,7 +10,6 @@ from typing import List
 
 from utils.array_utils import normalize_along_axis, sample_spherical
 
-
 _CIRCLE = 'CIRCLE'
 _LINE = 'LINE'
 _BLOB = 'BLOB'
@@ -141,10 +140,12 @@ def _line(
   normalized_grad = normalize_along_axis(gradient)
 
   # Find projection of position vectors orthogonal to line defined by gradient
-  ortho_projector = lambda v: v - np.dot(v, normalized_grad) * normalized_grad
-  ortho_proj = np.apply_along_axis(ortho_projector, -1, relative_positions)
-  squared_ortho_distance = np.sum(ortho_proj ** 2, -1)
+  proj_coefficients = np.inner(relative_positions, normalized_grad)
+  grad_matrix = np.ones(coordinates.shape) * normalized_grad
+  proj = np.expand_dims(proj_coefficients, -1) * grad_matrix
+  ortho_proj = relative_positions - proj
 
+  squared_ortho_distance = np.sum(ortho_proj ** 2, -1)
   return squared_ortho_distance <= radius ** 2
 
 
