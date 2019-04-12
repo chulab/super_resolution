@@ -34,23 +34,23 @@ gcloud ml-engine jobs submit training $JOB_NAME \
     --prefetch 2 \
     --interleave_cycle_length 6 \
     --num_parallel_reads 5 \
-    --profile_steps 500 \
+    --profile_steps 1000 \
     --log_step_count 20 \
         --hparams \
-learning_rate=.001,\
-conv_blocks=2,\
+learning_rate=.0001,\
+conv_blocks=4,\
 spatial_blocks=5,\
 spatial_kernel_size=5,\
 spatial_scales=[1,2,4,8,16],\
-residual_blocks=4,\
+filters_per_scale=16,\
+residual_blocks=0,\
 residual_channels=64,\
 residual_kernel_size=3,\
 residual_scale=.1,\
 bit_depth=2,\
 observation_pool_downsample=8,\
-distribution_pool_downsample=30,
-
-#    --warm_start_from_dir 'gs://chu_super_resolution_experiment/discretized_10_04_2019_18_58_36'\
+distribution_pool_downsample=30, \
+    --warm_start_from_dir 'gs://chu_super_resolution_experiment/discretized_12_04_2019_12_10_05'\
 
 
 #

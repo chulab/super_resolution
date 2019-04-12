@@ -102,6 +102,7 @@ def network(input_layer, params, training):
         use_bias=True,
         activation=tf.nn.leaky_relu
       ).apply(network)
+      network = tf.keras.layers.BatchNormalization().apply(network)
 
     for _ in range(params.spatial_blocks):
       network = blocks.spatial_block(
@@ -109,9 +110,9 @@ def network(input_layer, params, training):
         scales=params.spatial_scales,
         filters_per_scale=params.filters_per_scale,
         kernel_size=params.spatial_kernel_size,
+        use_bias=False,
         activation=tf.nn.leaky_relu,
       )
-      network = tf.keras.layers.BatchNormalization().apply(network)
 
     network = tf.keras.layers.SeparableConv2D(
       filters=params.residual_channels,
@@ -201,6 +202,8 @@ def model_fn(features, labels, mode, params):
   distributions = labels
   logging.info("`distributions` tensor recieved in model is "
                 "{}".format(distributions))
+
+  tf.summary.image("original_distribution", distributions[..., tf.newaxis], 1)
 
   observations, distributions = gpu_preprocess(observations, distributions, params)
 

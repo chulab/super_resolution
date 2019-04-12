@@ -29,15 +29,16 @@ def spatial_block(x, scales, filters_per_scale, kernel_size,
   with tf.name_scope("spatial_block"):
     convs = []
     for scale in scales:
-      convs.append(
-        tf.keras.layers.SeparableConv2D(
+      conv = tf.keras.layers.SeparableConv2D(
         filters=filters_per_scale,
         kernel_size=kernel_size,
         dilation_rate=(scale, scale),
         padding="same",
         use_bias=use_bias,
         activation=activation,
-        ).apply(x))
+        ).apply(x)
+      conv = tf.keras.layers.BatchNormalization().apply(conv)
+      convs.append(conv)
     if len(scales) > 1:
       net = tf.keras.layers.Concatenate().apply(convs)
     else:
