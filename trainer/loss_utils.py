@@ -38,3 +38,9 @@ def quantize_tensor(
     return quantized
   else:
     return tf.one_hot(quantized, quantization_count)
+
+
+def proportional_loss_batch(
+
+):
+  pass

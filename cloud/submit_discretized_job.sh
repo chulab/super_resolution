@@ -14,6 +14,7 @@ OUTPUT_PATH=$JOB_DIR
 
 MODULE_NAME=trainer.train_discretized_model
 
+
 # Train on Cloud.
 gcloud ml-engine jobs submit training $JOB_NAME \
     --job-dir $JOB_DIR \
@@ -27,7 +28,6 @@ gcloud ml-engine jobs submit training $JOB_NAME \
     --train_dataset_directory $CLOUD_DATA_TRAIN \
     --eval_dataset_directory $CLOUD_DATA_EVAL \
     --observation_spec_path $CLOUD_OBSERVATION_SPEC \
-    --pool_downsample 10 \
     --example_shape 501,501 \
     --train_steps 2000 \
     --batch_size 5 \
@@ -42,17 +42,23 @@ conv_blocks=2,\
 spatial_blocks=5,\
 spatial_kernel_size=5,\
 spatial_scales=[1,2,4,8,16],\
-residual_blocks=8,\
+residual_blocks=4,\
 residual_channels=64,\
 residual_kernel_size=3,\
 residual_scale=.1,\
 bit_depth=2,\
+observation_pool_downsample=8,\
+distribution_pool_downsample=30,
+
+#    --warm_start_from_dir 'gs://chu_super_resolution_experiment/discretized_10_04_2019_18_58_36'\
 
 
 #
+#LOCAL_OUTPUT='trainer/test_output'
+#
 ## Train locally
 #gcloud ml-engine local train\
-#    --job-dir trainer/test_output \
+#    --job-dir $LOCAL_OUTPUT \
 #    --module-name $MODULE_NAME \
 #    --package-path trainer/ \
 #    -- \
@@ -79,4 +85,8 @@ bit_depth=2,\
 #residual_kernel_size=3,\
 #residual_scale=.1,\
 #bit_depth=2,\
+#observation_pool_downsample=5,\
+#distribution_pool_downsample=10,\
+#
+#rm -r $LOCAL_OUTPUT
 
