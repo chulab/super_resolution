@@ -5,8 +5,12 @@ import os
 from typing import List
 import multiprocessing as mp
 import glob
+import sys
 
 import tensorflow as tf
+
+# Add `super_resolution` package.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from training_data import record_utils
 from preprocessing import signals
@@ -88,7 +92,9 @@ def main():
   args = parse_args()
   logging.info(args)
 
-  files = glob.glob(args.source_directory)
+  glob_str = "{}/*.tfrecord".format(args.source_directory)
+  logging.info("using glob_str {}".format(glob_str))
+  files = glob.iglob(glob_str)
 
   pool = mp.Pool(processes=args.num_workers)
 
