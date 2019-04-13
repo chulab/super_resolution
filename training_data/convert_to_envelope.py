@@ -7,6 +7,7 @@ import multiprocessing as mp
 import glob
 import sys
 from scipy import signal
+import numpy as np
 
 import tensorflow as tf
 tf.enable_eager_execution()
@@ -15,14 +16,14 @@ tf.enable_eager_execution()
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from training_data import record_utils
-from preprocessing import signals
+
 
 def rf_to_envelope(
     tensor,
     axis
 ):
   """Applies a hilber transform along `axis` of `tensor`."""
-  return signal.hilbert(tensor, axis)
+  return np.abs(signal.hilbert(tensor, axis)).astyp(np.float32)
 
 
 def tfrecord_to_example(
