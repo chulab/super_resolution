@@ -22,8 +22,8 @@ def rf_to_envelope(
     tensor,
     axis
 ):
-  """Applies a hilber transform along `axis` of `tensor`."""
-  return np.abs(signal.hilbert(tensor, axis)).astyp(np.float32)
+  """Applies a hilbert transform along `axis` of `tensor`."""
+  return np.abs(signal.hilbert(tensor, axis=axis)).astype(np.float32)
 
 
 def tfrecord_to_example(
@@ -61,8 +61,11 @@ def save_tfrecord(
 ):
   writer = tf.python_io.TFRecordWriter(file_name)
   logging.info("writing examples using writer {}".format(writer))
+  i = 0
   for example  in examples:
     writer.write(example.SerializeToString())
+    i+=1
+  logging.info("Wrote {} examples to {}".format(i, file_name))
   writer.close()
 
 
