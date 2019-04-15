@@ -74,12 +74,15 @@ def parse_and_save(
     out_directory,
 ):
   name = os.path.basename(file_path)
-  examples = tfrecord_to_example(file_path)
-  processed_examples = [
-    envelope_example(e) for e in examples
-  ]
-  file_name = os.path.join(out_directory, name)
-  save_tfrecord(processed_examples, file_name)
+  output_file_name = os.path.join(out_directory, name)
+  if os.path.isfile(output_file_name):
+    logging.info("{} already exists, moving on to next file".format(output_file_name))
+  else:
+    examples = tfrecord_to_example(file_path)
+    processed_examples = [
+      envelope_example(e) for e in examples
+    ]
+    save_tfrecord(processed_examples, output_file_name)
 
 
 def parse_args():
