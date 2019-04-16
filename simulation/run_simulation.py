@@ -55,7 +55,7 @@ def _remove_processed(
 def _add_file_to_log(
     file, log_file,
 ):
-  with open(log_file) as f:
+  with open(log_file, 'w') as f:
     f.write(file)
     f.write("\n")
 
