@@ -33,17 +33,49 @@ from training_data import record_writer
 from utils import array_utils
 
 
+def _load_or_make_finished_files(file_path):
+  if os.path.isfile(file_path):
+    with open(file_path) as f:
+      return f.read().splitlines()
+  else:
+    if not os.path.exists(os.path.dirname(file_path)):
+      os.makedirs(os.path.dirname(file_path))
+    # Touch file.
+    open(file_path, 'a').close()
+    return []
+
+
+def _remove_processed(
+    filenames, finished_list
+):
+  """Removes files from `filenames` which are present in `finished_list`"""
+  return [file for file in filenames if file not in finished_list]
+
+
+def _add_file_to_log(
+    file, log_file,
+):
+  with open(log_file) as f:
+    f.write(file)
+    f.write("\n")
+
+
 def _files_in_directory(
     directory,
-    extension: str='',
+    extension,
+    finished_files: List,
 ):
   files=glob.glob(directory + "/*" + extension)
-  return sorted(files)
+  files=sorted(files)
+  # Remove already processed files.
+  filenames = _remove_processed(files, finished_files)
+  return filenames
 
 
 def _load_data(
   files: List,
   queue: mp.JoinableQueue,
+  log_file: str
 ):
   """Loads elements sequentially from input files.
 
@@ -53,14 +85,16 @@ def _load_data(
   """
   try:
     for file in files:
-        logging.info("loading file {}".format(file))
-        array = np.load(file)
-        # `split_array` is a list of individual scatterer distributions.
-        split_array = array_utils.reduce_split(array, 0)
+      logging.info("loading file {}".format(file))
+      array = np.load(file)
+      # `split_array` is a list of individual scatterer distributions.
+      split_array = array_utils.reduce_split(array, 0)
 
-        for arr in split_array:
-          queue.put(arr.astype(np.float32))
-          logging.debug("Put distribution in queue")
+      for arr in split_array:
+        queue.put(arr.astype(np.float32))
+        logging.debug("Put distribution in queue")
+
+      _add_file_to_log(file, log_file)
   except Exception:
     logging.error("Fatal error in loading loop", exc_info=True)
 
@@ -147,6 +181,7 @@ def simulate_and_save(
     simulation_worker_count: int,
     dataset_name: str,
     examples_per_shard: int,
+    finished_log: str,
 ):
   """Creates dataset by simulating observation of scatterer distribution.
 
@@ -177,6 +212,8 @@ def simulate_and_save(
     datset_name: Name describing dataset (e.g. `train`, `eval`).
     output_directory: Path to directory for dataset.
     examples_per_shard: `int` of number of examples per shard (file) in dataset.
+    finished_log: Path to a text file where this program will record files that
+    have been processed (used for recovery).
 
   Raises:
     ValueError: If `distributions` does not have shape
@@ -191,8 +228,10 @@ def simulate_and_save(
   # `simulated_queue` contains arrays that have already been simulated.
   simulated_queue = manager.Queue(maxsize=30)
 
+  finished_files = _load_or_make_finished_files(finished_log)
+
   filenames = _files_in_directory(
-    scatterer_distribution_directory, extension=".npy")
+    scatterer_distribution_directory, extension=".npy", finished_files=finished_files)
 
   logging.info("Found files {}".format(filenames))
 
@@ -220,7 +259,8 @@ def simulate_and_save(
   loading_worker_count = 1
   loading_workers = []
   for i in range(loading_worker_count):
-    worker = mp.Process(target=_load_data, args=(filenames, scatterer_queue))
+    worker = mp.Process(
+      target=_load_data, args=(filenames, scatterer_queue, finished_log))
     worker.name = "loading_worker_{}".format(i)
     worker.daemon=True
     logging.debug("Instantiating loading worker {}".format(worker.name))
@@ -399,6 +439,9 @@ def main():
   if not os.path.isdir(directory):
     directory = os.path.dirname(directory)
 
+  finished_log=os.path.join(directory, "finished_log")
+  logging.info("using `finished_log` {}".format(finished_log))
+
   observation_spec = create_observation_spec.load_observation_spec(
     args.observation_spec_path)
 
@@ -411,6 +454,7 @@ def main():
     simulation_worker_count=args.worker_count,
     dataset_name=args.dataset_name,
     examples_per_shard=args.examples_per_shard,
+    finished_log=finished_log,
   )
 
 
