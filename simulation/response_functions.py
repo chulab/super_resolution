@@ -343,7 +343,10 @@ def gaussian_impulse_response(
   return np.real(mode_amplitude * spatial_phase * pulse_window)
 
 
-# TODO(noah): use coordinate grid for gaussian pulse.
+def gaussian(coordinates, sigma):
+  return np.exp(-.5 * (coordinates / sigma) ** 2)
+
+
 def gaussian_impulse_response_v2(
     coordinates,
     frequency,
@@ -370,6 +373,8 @@ def gaussian_impulse_response_v2(
   wavelength = defs.wavelength_from_frequency(frequency)
   wavenumber = np.pi * 2 / wavelength
 
+  wave_vector = wavenumber * np.array([0., 0., 1.])
+
   # We first generate the amplitude of a monochromatic gaussian beam.
   mode_amplitude = hermite_gaussian_mode(
     coordinates=coordinates,
@@ -380,22 +385,17 @@ def gaussian_impulse_response_v2(
   )
 
   # Calculate the monochromatic instantaneous phase term.
-  spatial_phase = np.exp(-1j * wavenumber * coordinates[..., 2])
+  spatial_phase = np.exp(-1j * np.sum(wave_vector * coordinates, axis=-1))
 
-  # Compute grid size in z-axis.
-  dz = coordinates[0, 0, 1, 2]-coordinates[0, 0, 0, 2]
+  # Compute bandwidth limited gaussian pulse.
+  pulse_sigma_z = defs._SPEED_OF_SOUND_WATER / (np.pi * 2 * frequency_sigma)
 
   # Compute windowing amplitude which is applied to the gaussian beam.
-  pulse_window = gaussian_pulse_v2(
-    frequency_sigma=frequency_sigma,
-    length=mode_amplitude.shape[-1],
-    dz=dz,
-  )
+  pulse_window = gaussian(coordinates[..., 2], pulse_sigma_z)
 
   # Real component of beam is physical impulse response. We slice along the
   # center coodinate in the `Y` direction as we use a 1D array.
   return np.real(mode_amplitude * spatial_phase * pulse_window)
-
 
 
 def frequency_bandwidth_with_gaussian_noise(
