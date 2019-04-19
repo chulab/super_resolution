@@ -66,7 +66,7 @@ def _dataset_from_generator(
     shard_counter = 0
 
     for _ in range(examples_per_shard):
-      # Get next output. Typically this will be from an estimator which is running
+      # Get next test_output. Typically this will be from an estimator which is running
       # in the background.
       try:
         output = next(generator)

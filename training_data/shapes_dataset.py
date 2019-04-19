@@ -2,11 +2,13 @@
 
 import argparse
 
+import functools
+
 import numpy as np
 
 from simulation import response_functions
 
-from typing import List
+from typing import List, Callable
 
 from utils.array_utils import normalize_along_axis, sample_spherical
 
@@ -329,10 +331,32 @@ def random_blobs(
   return np.clip(box, a_min=0., a_max=max_intensity)
 
 
+def _select_fn(
+    type: str
+) -> Callable:
+  if (type == _CIRCLE):
+      return random_circles
+  elif (type == _LINE):
+      return random_lines
+  elif (type == _BLOB):
+      return random_blobs
+  else:
+      raise ValueError("type must be in %s" % str(VALID_TYPES))
+
+
+def shape_fn(
+    type: str,
+    *args,
+    **kwargs
+):
+  shape_fn = _select_fn(type)
+  return functools.partial(shape_fn, *args, **kwargs)
+
+
 def shape_generator(
   type: str,
   *args,
-  **kwargs,
+  **kwargs
 ):
   """Generator for shapes of a given type.
 
@@ -341,14 +365,7 @@ def shape_generator(
     args: Parameters to pass into the corresponding shape function.
     kwargs: Same as `args`.
   """
-  if (type == _CIRCLE):
-      shape_fn = random_circles
-  elif (type == _LINE):
-      shape_fn = random_lines
-  elif (type == _BLOB):
-      shape_fn = random_blobs
-  else:
-      raise ValueError("type must be in %s" % str(VALID_TYPES))
+  shape_fn = _select_fn(type)
   while True:
     yield shape_fn(*args, **kwargs)
 
