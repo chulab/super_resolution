@@ -31,7 +31,7 @@ def parse_args():
 
   parser.add_argument(
     '--job-dir',
-    help='Path to save output of model including checkpoints.',
+    help='Path to save test_output of model including checkpoints.',
     type=str,
     required=True
   )
@@ -59,6 +59,37 @@ def parse_args():
   parser.add_argument('--cloud_train', action='store_true')
   parser.set_defaults(cloud_train=False)
 
+  ## HPARAMETER TUNING ARGS
+  parser.add_argument(
+    '--learning_rate',
+    type=float,
+  )
+  parser.add_argument(
+    '--decay_rate',
+    type=float,
+  )
+  parser.add_argument(
+    '--conv_blocks',
+    type=int,
+  )
+  parser.add_argument(
+    '--spatial_blocks',
+    type=int,
+  )
+  parser.add_argument(
+    '--filters_per_scale',
+    type=int,
+  )
+  parser.add_argument(
+    '--residual_blocks',
+    type=int,
+  )
+  parser.add_argument(
+    '--residual_channels',
+    type=int,
+  )
+
+
   args, _ = parser.parse_known_args()
 
   return args
@@ -80,6 +111,15 @@ def main():
   hparams.parse(args.hparams)
   # Must manually replace `observation_spec`.
   hparams.observation_spec=observation_spec
+
+  if args.learning_rate is not None:
+    hparams.learning_rate = args.learning_rate
+    hparams.decay_rate = args.decay_rate
+    hparams.conv_blocks = args.conv_blocks
+    hparams.spatial_blocks = args.spatial_blocks
+    hparams.filters_per_scale = args.filters_per_scale
+    hparams.residual_blocks = args.residual_blocks
+    hparams.residual_channels = args.residual_channels
 
   logging.info("HParams {}".format(hparams))
 
