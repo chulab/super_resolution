@@ -1,7 +1,7 @@
 """Utility functions for plotting."""
 
 import os
-
+import math
 from matplotlib_scalebar import scalebar
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -93,3 +93,36 @@ def plot_observation_example(
 
     plt.savefig(observation_file_name)
     plt.close(fig)
+
+def find_nearest_square_divisor(x: int):
+  n = math.floor(math.sqrt(x))
+  while True:
+    if x % n == 0:
+      return (n, int(x / n))
+    n -= 1
+
+def plot_grid(images, file_name=None, **kwargs):
+  """Plots a list of images in a grid"""
+  r, c = find_nearest_square_divisor(len(images))
+  fig, ax = plt.subplots(r, c, figsize=(c * 3, r * 3))
+  if isinstance(ax, np.ndarray):
+    ax = ax.flatten()
+  else:
+    ax = [ax]
+  for a, p in zip(ax, images):
+    plot_with_colorbar_and_scalebar(a, p, **kwargs)
+
+  if file_name is not None:
+    plt.savefig(file_name)
+    plt.close(fig)
+
+
+def plot_with_colorbar_and_scalebar(ax, array, scale=None, **kwargs):
+  im = ax.imshow(array, **kwargs)
+  divider = make_axes_locatable(ax)
+  cax = divider.append_axes("right", size="5%", pad=0.05)
+  plt.colorbar(im, cax=cax)
+
+  if scale is not None:
+    sb = scalebar.ScaleBar(scale)
+    ax.add_artist(sb)
