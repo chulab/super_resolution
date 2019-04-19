@@ -35,7 +35,6 @@ def make_hparams() -> tf.contrib.training.HParams:
     observation_pool_downsample=10,
     distribution_pool_downsample=10,
     bit_depth=2,
-    count_loss_scale=1.,
     decay_step=500,
     decay_rate=.9,
   )
@@ -56,42 +55,6 @@ def network(input_layer, params, training):
   with tf.variable_scope("Model"):
 
     network = input_layer
-
-    # network = tf.layers.conv2d(
-    #   inputs=network,
-    #   filters=32,
-    #   kernel_size=[3, 3],
-    #   padding="same",
-    #   activation=tf.nn.leaky_relu)
-    #
-    # network = tf.layers.conv2d(
-    #   inputs=network,
-    #   filters=32,
-    #   kernel_size=[3, 3],
-    #   padding="same",
-    #   activation=tf.nn.leaky_relu)
-    #
-    # network = tf.layers.conv2d(
-    #   inputs=network,
-    #   filters=32,
-    #   kernel_size=[5, 5],
-    #   padding="same",
-    #   activation=tf.nn.leaky_relu)
-    #
-    # network = tf.layers.conv2d(
-    #   inputs=network,
-    #   filters=64,
-    #   kernel_size=[5, 5],
-    #   padding="same",
-    #   activation=tf.nn.leaky_relu)
-    #
-    # network = tf.layers.conv2d(
-    #   inputs=network,
-    #   filters=64,
-    #   kernel_size=[10, 10],
-    #   padding="same",
-    #   activation=tf.nn.leaky_relu)
-    #
 
     for _ in range(params.conv_blocks):
       network = tf.keras.layers.SeparableConv2D(
@@ -153,7 +116,7 @@ def network(input_layer, params, training):
 
 def gpu_preprocess(observations, distributions, params):
 
-  distributions, observations = preprocess.hilbert(hilbert_axis=2)(distributions, observations)
+  # distributions, observations = preprocess.hilbert(hilbert_axis=2)(distributions, observations)
 
   distributions = distributions[ ..., tf.newaxis]
   distributions = tf.keras.layers.AveragePooling2D(
@@ -213,7 +176,7 @@ def model_fn(features, labels, mode, params):
                 "{}".format(distributions))
 
   distributions_quantized = loss_utils.quantize_tensor(
-    distributions, params.bit_depth, 0., 4.)
+    distributions, params.bit_depth, 0., 2 ** params.bit_depth)
 
   # Average image along `channel` axis. This corresponds to previous SOA.
   averaged_observation = tf.reduce_mean(observations, axis=-1, keepdims=True)
@@ -263,7 +226,7 @@ def model_fn(features, labels, mode, params):
     distribution_class = _logit_to_class(distributions_quantized)
     prediction_class = _logit_to_class(predictions_quantized)
 
-    # Visualize output of predictions as categories.
+    # Visualize test_output of predictions as categories.
     tf.summary.tensor_summary("prediction_class", prediction_class)
 
     # Log fraction nonzero.
@@ -294,22 +257,27 @@ def model_fn(features, labels, mode, params):
     )
     hooks.append(image_hook)
 
-    tf.summary.image("distributions", dist_image, 1)
-    tf.summary.image("predictions", pred_image, 1)
-    tf.summary.image("difference", (dist_image - pred_image) ** 2, 1)
+    dist_summary = tf.summary.image("distributions", dist_image, 1)
+    pred_summary = tf.summary.image("predictions", pred_image, 1)
+    diff_summary = tf.summary.image("difference", (dist_image - pred_image) ** 2, 1)
 
-  # Loss. Compare output of nn to original images.
+    images_summaries = [dist_summary, pred_summary, diff_summary]
+
+    images_summaries = tf.summary.merge(images_summaries)
+
+    eval_summary_hook = tf.train.SummarySaverHook(
+      summary_op=images_summaries, save_secs=120)
+
+  # Loss. Compare test_output of nn to original images.
   with tf.variable_scope("loss"):
     real_proportion = (tf.reduce_sum(
         distributions_quantized,
         axis=[0, 1, 2],
         keepdims=True,
         ) + 10) / (tf.cast(tf.size(distributions_quantized), tf.float32) + 10)
-    proportional_weights = 1 / (
-      tf.reduce_sum(
+    proportional_weights = tf.reduce_sum(
         (1 / real_proportion) * distributions_quantized,
         axis=-1)
-    )
     proportion_hook = tf.train.LoggingTensorHook(
       tensors={"proportional_weights": proportional_weights[0],},
       every_n_iter=50,
@@ -345,7 +313,6 @@ def model_fn(features, labels, mode, params):
       tf.cast(tf.equal(distribution_class, prediction_class), tf.float32))
     tf.summary.scalar("batch_accuracy", batch_accuracy)
 
-
     accuracy_hook = tf.train.LoggingTensorHook(
       tensors={"batch_accuracy": batch_accuracy,},
       every_n_iter=50
@@ -353,8 +320,9 @@ def model_fn(features, labels, mode, params):
     hooks.append(accuracy_hook)
 
     accuracy = tf.metrics.accuracy(
-      labels=tf.argmax(distributions_quantized, -1),
-      predictions=tf.argmax(predictions_quantized, -1)
+      labels=distribution_class,
+      predictions=prediction_class,
+      weights=proportional_weights,
     )
 
     eval_metric_ops = {
@@ -368,6 +336,7 @@ def model_fn(features, labels, mode, params):
     predictions=predict_output,
     eval_metric_ops=eval_metric_ops,
     training_hooks=hooks,
+    evaluation_hooks=[eval_summary_hook],
   )
 
 
