@@ -2,10 +2,8 @@
 
 import tensorflow as tf
 
-
 from training_data import shapes_dataset
 from training_data import particle_dataset
-from training_data import generate_scatterer_dataset
 
 
 def dataset_params():

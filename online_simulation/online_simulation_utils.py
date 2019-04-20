@@ -1,6 +1,8 @@
 """Utilities for performing online simulation."""
 from typing import List
 
+import itertools
+
 from scipy.spatial import transform
 
 import tensorflow as tf
@@ -12,12 +14,25 @@ from utils import tf_fft_conv
 def simulation_params():
   return tf.contrib.training.HParams(
     psf_dimension=2e-3,
-    angles=[0.],
-    frequency=10e6,
-    mode=0,
-    numerical_aperture=.125,
+    psf_descriptions=None, # (angle, frequency, mode) tuples
     frequency_sigma=1e6,
+    numerical_aperture=.125,
   )
+
+
+def grid_psf_descriptions(
+    angle_limit,
+    angle_count,
+    min_frequency,
+    max_frequency,
+    frequency_count,
+    mode_count=1,
+):
+  angles = np.linspace(0., angle_limit, angle_count)
+  frequencies = np.linspace(min_frequency, max_frequency, frequency_count)
+  modes = list(range(mode_count))
+
+  return list(itertools.product(angles, frequencies, modes))
 
 
 def _coordinates(lengths, grid_unit, rotation_angle):
@@ -43,24 +58,22 @@ def _coordinates(lengths, grid_unit, rotation_angle):
 def make_psf(
     psf_dimension:float,
     grid_dimension: float,
-    angles: List[float],
-    frequency,
-    mode,
+    descriptions,
     numerical_aperture,
     frequency_sigma,
 ):
   psfs = []
 
 
-  for a in angles:
+  for a, f, m in descriptions:
     lengths = [psf_dimension, 0, psf_dimension]
 
     coordinates = _coordinates(lengths, grid_dimension, a)
 
     psf_temp = response_functions.gaussian_impulse_response_v2(
       coordinates=coordinates,
-      frequency=frequency,
-      mode=mode,
+      frequency=f,
+      mode=m,
       numerical_aperture=numerical_aperture,
       frequency_sigma=frequency_sigma,
     )[:, 0, :]

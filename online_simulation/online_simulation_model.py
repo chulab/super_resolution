@@ -88,16 +88,17 @@ def network(input_layer, training):
       test mode. (Drop out is turned on during training but off during
       eval.)
   """
-  network = input_layer
+  with tf.name_scope("model"):
+    network = input_layer
 
-  network = entry_flow(network)
+    network = entry_flow(network)
 
-  for i in range(4):
-    network = conv_block(network)
+    for i in range(4):
+      network = conv_block(network)
 
-  network = tf.layers.dropout(network, training=training)
+    network = tf.layers.dropout(network, training=training)
 
-  return network
+    return network
 
 
 def downsample_by_pool(tensor, kernel_size):
@@ -123,36 +124,43 @@ def model_fn(features, labels, mode, params):
   train_hooks = []
   eval_hooks = []
 
-  print("features", features)
-  print("labels", labels)
+  with tf.name_scope("distributions"):
+    full_resolution_distributions = features
+    full_resolution_distributions = tf.cast(full_resolution_distributions, tf.float32)
 
-  distributions = features
-  distributions = tf.cast(distributions, tf.float32)
+    distributions = full_resolution_distributions[tf.newaxis, ..., tf.newaxis]
+    distributions = downsample_by_pool(distributions, 32) * (32 ** 2)
+    distributions = distributions[..., 0]
+    print("distribution", distributions)
 
-  distribution_hook = tf.train.LoggingTensorHook(
-    tensors={
-      "distributions": distributions,
-      "max": tf.math.reduce_max(distributions)
-    },
-    every_n_iter=50,
-  )
-  train_hooks.append(distribution_hook)
+    distributions_quantized = loss_utils.quantize_tensor(
+      distributions, params.bit_depth, 0., 2 ** params.bit_depth)
+    print("distribution quantized", distributions_quantized)
 
-  # Use `Variable` nodes here because `constant` for some reason really slows
-  # down the graph.
-  tf_psfs = [tf.Variable(p, trainable=False) for p in params.psfs]
-  simulator = online_simulation_utils.USsimulator(psfs=tf_psfs)
-  observations = online_simulation_utils.observation_from_distribution(simulator, distributions)
-  print("observations", observations)
+    distribution_hook = tf.train.LoggingTensorHook(
+      tensors={
+        "full_resolution_distributions": full_resolution_distributions,
+        "max": tf.math.reduce_max(full_resolution_distributions)
+      },
+      every_n_iter=50,
+    )
+    train_hooks.append(distribution_hook)
 
-  distributions = distributions[tf.newaxis, ..., tf.newaxis]
-  distributions = downsample_by_pool(distributions, 32) * (32 ** 2)
-  distributions = distributions[..., 0]
-  print("distribution", distributions)
 
-  distributions_quantized = loss_utils.quantize_tensor(
-    distributions, params.bit_depth, 0., 2 ** params.bit_depth)
-  print("distribution quantized", distributions_quantized)
+  with tf.variable_scope("observations"):
+    # Add image summaries.
+
+    # Use `Variable` nodes here because `constant` for some reason really slows
+    # down the graph.
+    tf_psfs = [tf.Variable(p, trainable=False) for p in params.psfs]
+    simulator = online_simulation_utils.USsimulator(psfs=tf_psfs)
+    observations = online_simulation_utils.observation_from_distribution(
+      simulator, full_resolution_distributions)
+    print("observations", observations)
+
+    for i, psf in enumerate(tf_psfs):
+      tf.summary.image("obs_{}".format(i), observations[..., i, tf.newaxis], 1)
+
 
   if mode == tf.estimator.ModeKeys.TRAIN:
     training = True
@@ -228,7 +236,7 @@ def model_fn(features, labels, mode, params):
         summary_op=images_summaries, save_secs=120)
       eval_hooks.append(image_summary_hook)
 
-    with tf.variable_scope("predictions"):
+    with tf.name_scope("predictions"):
       predict_output = {
         "distribution_class": distribution_class,
         "observations": observations,
@@ -241,7 +249,7 @@ def model_fn(features, labels, mode, params):
         predictions=predict_output
       )
 
-  with tf.variable_scope("loss"):
+  with tf.name_scope("loss"):
     real_proportion = (tf.reduce_sum(
       distributions_quantized,
       axis=[0, 1, 2],
@@ -264,20 +272,20 @@ def model_fn(features, labels, mode, params):
     tf.summary.scalar("softmax_loss", softmax_loss)
     loss = softmax_loss
 
-  with tf.variable_scope("optimizer"):
+  with tf.name_scope("optimizer"):
     learning_rate = tf.train.exponential_decay(
       learning_rate=params.learning_rate,
       global_step=tf.train.get_global_step(),
       decay_steps=params.decay_step,
       decay_rate=params.decay_rate,
-      staircase=False,
+      staircase=True,
     )
     tf.summary.scalar("learning_rate", learning_rate)
     optimizer = tf.train.AdamOptimizer(learning_rate)
     train_op = optimizer.minimize(
       loss, global_step=tf.train.get_global_step())
 
-  with tf.variable_scope("metrics"):
+  with tf.name_scope("metrics"):
     batch_accuracy = tf.reduce_mean(
       tf.cast(tf.equal(distribution_class, prediction_class), tf.float32))
     tf.summary.scalar("batch_accuracy", batch_accuracy)
@@ -288,14 +296,20 @@ def model_fn(features, labels, mode, params):
     )
     train_hooks.append(accuracy_hook)
 
-    accuracy = tf.metrics.accuracy(
+    accuracy_no_weight = tf.metrics.accuracy(
+      labels=distribution_class,
+      predictions=prediction_class,
+    )
+
+    accuracy_weight = tf.metrics.accuracy(
       labels=distribution_class,
       predictions=prediction_class,
       weights=proportional_weights,
     )
 
     eval_metric_ops = {
-      "accuracy": accuracy,
+      "accuracy_weight": accuracy_weight,
+      "accuracy_no_weight": accuracy_no_weight,
     }
 
   return tf.estimator.EstimatorSpec(

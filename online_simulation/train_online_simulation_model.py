@@ -139,6 +139,41 @@ def parse_args():
     type=float,
     default=90.
   )
+  parser.add_argument(
+    '--frequency_count',
+    type=int,
+    default=1
+  )
+  parser.add_argument(
+    '--min_frequency',
+    type=float,
+    default=10e6
+  )
+  parser.add_argument(
+    '--max_frequency',
+    type=float,
+    default=20e6
+  )
+  parser.add_argument(
+    '--mode_count',
+    type=int,
+    default=1
+  )
+  parser.add_argument(
+    '--frequency_sigma',
+    type=float,
+    default=1e6
+  )
+  parser.add_argument(
+    '--learning_rate',
+    type=float,
+    default=.001,
+  )
+  parser.add_argument(
+    '--train_steps',
+    type=float,
+    default=2000,
+  )
 
   args, _ = parser.parse_known_args()
 
@@ -157,13 +192,23 @@ def main():
   simulation_params = online_simulation_utils.simulation_params()
   simulation_params.parse(args.simulation_params)
 
-  angles = np.linspace(0., args.angle_limit, args.angle_count)
-  simulation_params.angles=angles
+  descriptions=online_simulation_utils.grid_psf_descriptions(
+    angle_limit=args.angle_limit,
+    angle_count=args.angle_count,
+    min_frequency=args.min_frequency,
+    max_frequency=args.max_frequency,
+    frequency_count=args.frequency_count,
+    mode_count=args.mode_count,
+  )
+  simulation_params.psf_descriptions=descriptions
+  simulation_params.frequency_sigma=args.frequency_sigma
 
   model_params = online_simulation_model.make_hparams()
+  model_params.learning_rate=args.learning_rate
   model_params.parse(args.model_params)
 
   train_params = make_train_params()
+  train_params.train_steps=args.train_steps
   train_params.parse(args.train_params)
 
   train_input_fn =lambda: online_dataset_utils.distribution_dataset(
@@ -180,9 +225,7 @@ def main():
   psfs = online_simulation_utils.make_psf(
     psf_dimension=simulation_params.psf_dimension,
     grid_dimension=dataset_params.grid_dimension,
-    angles=simulation_params.angles,
-    frequency=simulation_params.frequency,
-    mode=simulation_params.mode,
+    descriptions=simulation_params.psf_descriptions,
     numerical_aperture=simulation_params.numerical_aperture,
     frequency_sigma=simulation_params.frequency_sigma,
   )
