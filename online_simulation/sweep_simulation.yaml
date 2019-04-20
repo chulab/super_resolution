@@ -6,8 +6,16 @@ trainingInput:
   pythonVersion: '3.5'
   runtimeVersion: '1.13'
   hyperparameters:
-    goal: MINIMIZE
+    goal: MAXIMIZE
     params:
+      - parameterName: learning_rate
+        type: DISCRETE
+        discreteValues:
+          - .0005
+      - parameterName: train_steps
+        type: DISCRETE
+        discreteValues:
+          - 2000
       - parameterName: angle_limit
         type: DISCRETE
         discreteValues:
@@ -16,13 +24,26 @@ trainingInput:
       - parameterName: angle_count
         type: DISCRETE
         discreteValues:
-          - 1
-          - 5
           - 10
           - 20
-          - 40
-    maxTrials: !!int 10
+      - parameterName: frequency_count
+        type: DISCRETE
+        discreteValues:
+          - 1
+          - 2
+          - 4
+          - 8
+      - parameterName: mode_count
+        type: DISCRETE
+        discreteValues:
+          - 1
+          - 2
+      - parameterName: frequency_sigma
+        type: DISCRETE
+        discreteValues:
+          - 1.e6
+    maxTrials: !!int 32
     maxParallelTrials: !!int 4
-    hyperparameterMetricTag: accuracy
+    hyperparameterMetricTag: accuracy_weight
     enableTrialEarlyStopping: FALSE
     algorithm: GRID_SEARCH

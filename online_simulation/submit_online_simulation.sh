@@ -21,14 +21,14 @@ gcloud ml-engine jobs submit training $JOB_NAME \
     --staging-bucket $STAGING_BUCKET \
     --module-name $MODULE_NAME \
     --package-path online_simulation/ \
-    --config online_simulation/sweep_simulation.yaml \
+    --config cloud/sweep_simulation.yaml \
     -- \
-    --cloud_train \
     --mode TRAIN \
     --dataset_params \
 "\
 physical_dimension=3e-3,\
-max_radius=1.5e-3\
+max_radius=1.5e-3,\
+max_count=10\
 " \
     --model_params \
 "\
@@ -37,12 +37,9 @@ bit_depth=4\
     --simulation_params \
 "" \
     --train_params \
-"train_steps=2000,\
-eval_steps=75,\
-profile_steps=500"
-
-
-
+"eval_steps=100,\
+profile_steps=1000" \
+    --frequency_sigma 2.e6
 #LOCAL_OUTPUT='online_simulation/test_output'
 #
 ## Train locally
@@ -55,18 +52,23 @@ profile_steps=500"
 #    --dataset_params \
 #"\
 #physical_dimension=3e-3,\
-#max_radius=1.5e-3\
+#max_radius=1.5e-3,\
+#max_count=10\
 #" \
 #    --model_params \
 #"\
 #bit_depth=4\
 #" \
-#    --simulation_params \
-#"" \
+#    --simulation_params "" \
 #    --train_params \
-#"train_steps=2000,\
+#"train_steps=10000,\
 #eval_steps=75,\
-#profile_steps=500" \
-#
-#rm -r $LOCAL_OUTPUT/
+#profile_steps=1000" \
+#    --angle_count 4 \
+#    --angle_limit 90 \
+#    --frequency_count 4 \
+#    --mode_count 2 \
+
+
+#rm -r $LOCAL_OUTPUT/*
 
