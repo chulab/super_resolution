@@ -14,16 +14,17 @@ def save_fig(
     file_path_in_bucket: str,
 ):
   """Save matplotlib figure to google cloud directory."""
-  temp_dir =tempfile.mkdtemp()
-  temp_fig_dir = os.path.join(temp_dir, "temp")
-  fig.savefig(temp_fig_dir)
-  plt.close(fig)
+  with tempfile.TemporaryDirectory() as temp_dir:
+    temp_fig_dir = os.path.join(temp_dir, "temp.png")
+    fig.savefig(temp_fig_dir)
 
-  # Init GCS client and upload file.
-  client = storage.Client()
-  bucket = client.get_bucket(bucket)
-  blob = bucket.blob(file_path_in_bucket)
-  blob.upload_from_filename(filename=temp_fig_dir)
+    print("file name ", file_path_in_bucket)
+
+    # Init GCS client and upload file.
+    client = storage.Client()
+    bucket = client.get_bucket(bucket)
+    blob = bucket.blob(file_path_in_bucket)
+    blob.upload_from_filename(filename=temp_fig_dir)
 
 
 def parse_directory(path):
@@ -45,7 +46,7 @@ def maybe_save_cloud(fig, path):
   """Saves either to local directory or google cloud."""
   file_path, google_bucket = parse_directory(path)
   if google_bucket is not None:
+    file_path = file_path + ".png"
     save_fig(fig, google_bucket, file_path)
   else:
-    file_path = file_path + ".png"
     fig.savefig(file_path)
