@@ -15,13 +15,20 @@ OUTPUT_PATH=$JOB_DIR
 
 MODULE_NAME=online_simulation.train_online_simulation_model
 
+#CONFIG=cloud/sweep_simulation.yaml
+CONFIG=cloud/config_gpu.yaml
+
+
+#WARM_START_FROM='gs://chu_super_resolution_experiment/online_simulation_19_04_2019_17_44_58/23/model.ckpt-2000'
+
+
 # Train on Cloud.
 gcloud ml-engine jobs submit training $JOB_NAME \
     --job-dir $JOB_DIR \
     --staging-bucket $STAGING_BUCKET \
     --module-name $MODULE_NAME \
     --package-path online_simulation/ \
-    --config cloud/sweep_simulation.yaml \
+    --config $CONFIG \
     -- \
     --mode TRAIN \
     --dataset_params \
@@ -39,7 +46,13 @@ bit_depth=4\
     --train_params \
 "eval_steps=100,\
 profile_steps=1000" \
-    --frequency_sigma 2.e6
+    --train_steps 4000 \
+    --learning_rate .001 \
+    --angle_count 20 \
+    --angle_limit 90 \
+    --frequency_count 8
+
+
 #LOCAL_OUTPUT='online_simulation/test_output'
 #
 ## Train locally
@@ -68,7 +81,6 @@ profile_steps=1000" \
 #    --angle_limit 90 \
 #    --frequency_count 4 \
 #    --mode_count 2 \
-
-
+#
 #rm -r $LOCAL_OUTPUT/*
 

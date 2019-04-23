@@ -17,15 +17,6 @@ trainingInput:
         type: INTEGER
         minValue: 1
         maxValue: 10
-      - parameterName: spatial_scales
-        type: CATEGORICAL
-        categoricalValues:
-          - '1'
-          - '4'
-          - '8'
-          - '1,2,4'
-          - '2,4,8'
-          - '4,8,16'
       - parameterName: filters_per_scale
         type: INTEGER
         minValue: 1
