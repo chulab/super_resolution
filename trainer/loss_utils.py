@@ -8,7 +8,7 @@ from tensorflow.python.ops import math_ops
 
 def quantize_tensor(
     tensor: float,
-    bit_depth: int,
+    quantization_count: int,
     min_val: float,
     max_val: float,
     separate_channels: bool=True,
@@ -25,9 +25,8 @@ def quantize_tensor(
   Returns:
     segmented_image: tf.Tensor of shape `[batch, height, width, quantizations]`
   """
-  quantization_count = 2 ** bit_depth
   clipped = tf.clip_by_value(tensor, min_val, max_val)
-  quantizations = list(np.arange(-1.e-5, quantization_count))
+  quantizations = list(np.arange(0, quantization_count))
   logging.info("using quantizations {}".format(quantizations))
   quantized = math_ops._bucketize(clipped, quantizations)
   # Reset indices to valid indices into `quantization_count` lenth tensor.
