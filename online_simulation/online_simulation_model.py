@@ -256,14 +256,7 @@ def model_fn(features, labels, mode, params):
       )
 
   with tf.name_scope("loss"):
-    real_proportion = (tf.reduce_sum(
-      distributions_quantized,
-      axis=[0, 1, 2],
-      keepdims=True,
-    ) + 10) / (tf.cast(tf.size(distributions_quantized), tf.float32) + 10)
-    proportional_weights = tf.reduce_sum(
-      (1 / real_proportion) * distributions_quantized,
-      axis=-1)
+    proportional_weights = loss_utils.inverse_class_weight(distributions_quantized)
     proportion_hook = tf.train.LoggingTensorHook(
       tensors={"proportional_weights": proportional_weights[0], },
       every_n_iter=50,
