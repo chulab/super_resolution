@@ -44,8 +44,6 @@ def conv_block(
     input_layer,
     filters=64,
     kernel_size=[3, 3],
-    depthwise_kernel_size=[3, 3],
-    depthwise_multiplier=1,
 ):
   network = input_layer
   network_res = tf.keras.layers.SeparableConv2D(
@@ -67,14 +65,22 @@ def conv_block(
   ).apply(network_res)
   network_res = tf.keras.layers.BatchNormalization().apply(network_res)
   network = tf.keras.layers.add([network, network_res])
-  # Pool downsample
+  return network
+
+
+def downsample_block(
+    input_layer,
+    depthwise_kernel_size=[3, 3],
+    depthwise_multiplier=1,
+):
   network = tf.keras.layers.DepthwiseConv2D(
     depth_multiplier=depthwise_multiplier,
     kernel_size=depthwise_kernel_size,
     dilation_rate=1,
     padding="same",
     strides=2,
-  ).apply(network)
+  ).apply(input_layer)
+  network = tf.keras.layers.BatchNormalization().apply(network)
   return network
 
 
@@ -93,8 +99,11 @@ def network(input_layer, training):
 
     network = entry_flow(network)
 
-    for i in range(4):
+    for i in range(3):
       network = conv_block(network)
+      network = downsample_block(network)
+
+    network = conv_block(network)
 
     network = tf.layers.dropout(network, training=training)
 
@@ -129,13 +138,13 @@ def model_fn(features, labels, mode, params):
     full_resolution_distributions = tf.cast(full_resolution_distributions, tf.float32)
 
     distributions = full_resolution_distributions[tf.newaxis, ..., tf.newaxis]
-    distributions = downsample_by_pool(distributions, 32) * (32 ** 2)
+    distributions = downsample_by_pool(distributions, 16) * (16 ** 2)
     distributions = distributions[..., 0]
-    print("distribution", distributions)
+    logging.info("distribution {}".format(distributions))
 
     distributions_quantized = loss_utils.quantize_tensor(
       distributions, params.bit_depth, 0., 2 ** params.bit_depth)
-    print("distribution quantized", distributions_quantized)
+    logging.info("distribution quantized {}".format(distributions_quantized))
 
     distribution_hook = tf.train.LoggingTensorHook(
       tensors={
@@ -146,17 +155,14 @@ def model_fn(features, labels, mode, params):
     )
     train_hooks.append(distribution_hook)
 
-
   with tf.variable_scope("observations"):
-    # Add image summaries.
-
     # Use `Variable` nodes here because `constant` for some reason really slows
     # down the graph.
     tf_psfs = [tf.Variable(p, trainable=False) for p in params.psfs]
     simulator = online_simulation_utils.USsimulator(psfs=tf_psfs)
     observations = online_simulation_utils.observation_from_distribution(
       simulator, full_resolution_distributions)
-    print("observations", observations)
+    logging.info("observations {}".format(observations))
 
     for i, psf in enumerate(tf_psfs):
       tf.summary.image("obs_{}".format(i), observations[..., i, tf.newaxis], 1)
@@ -296,6 +302,11 @@ def model_fn(features, labels, mode, params):
     )
     train_hooks.append(accuracy_hook)
 
+    mean_squared_error = tf.metrics.mean_squared_error(
+      labels=distribution_class,
+      predictions=prediction_class,
+    )
+
     accuracy_no_weight = tf.metrics.accuracy(
       labels=distribution_class,
       predictions=prediction_class,
@@ -310,6 +321,7 @@ def model_fn(features, labels, mode, params):
     eval_metric_ops = {
       "accuracy_weight": accuracy_weight,
       "accuracy_no_weight": accuracy_no_weight,
+      "mean_squared_error": mean_squared_error,
     }
 
   return tf.estimator.EstimatorSpec(

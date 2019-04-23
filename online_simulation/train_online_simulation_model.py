@@ -4,7 +4,6 @@ import argparse
 import logging
 import os
 import sys
-import numpy as np
 import tensorflow as tf
 
 # Add `super_resolution` package.
@@ -12,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analysis import plot_utils
 
+from cloud import save_utils
 from online_simulation import online_simulation_model
 from online_simulation import online_dataset_utils
 from online_simulation import online_simulation_utils
@@ -40,6 +40,7 @@ def train_and_evaluate(
     eval_steps,
     model_fn,
     model_params,
+    warm_start_from,
     profile_steps,
     save_checkpoint_steps,
     log_step_count,
@@ -60,6 +61,7 @@ def train_and_evaluate(
     model_fn=model_fn,
     config=run_config,
     params=model_params,
+    warm_start_from=warm_start_from,
   )
 
   # Hook to log step timing.
@@ -126,6 +128,12 @@ def parse_args():
     '--train_params',
     help = 'Comma separated list of "name=value" pairs.',
     default = '',
+  )
+
+  parser.add_argument(
+    '--warm_start_from',
+    help = 'Warm start file.',
+    default = None,
   )
 
   ## HPARAMETER TUNING ARGS
@@ -230,10 +238,8 @@ def main():
     frequency_sigma=simulation_params.frequency_sigma,
   )
 
-  # plot_utils.plot_grid(
-  #   psfs, os.path.join(args.job_dir, "psfs"),
-  #   scale=dataset_params.grid_dimension,
-  # )
+  fig = plot_utils.plot_grid(psfs, scale=dataset_params.grid_dimension,)
+  save_utils.maybe_save_cloud(fig, args.job_dir)
 
   model_params.psfs=psfs
 
@@ -246,6 +252,7 @@ def main():
       eval_steps=train_params.eval_steps,
       model_fn=online_simulation_model.model_fn,
       model_params=model_params,
+      warm_start_from=args.warm_start_from,
       profile_steps=train_params.profile_steps,
       save_checkpoint_steps=train_params.save_checkpoint_steps,
       log_step_count=train_params.log_step_count
