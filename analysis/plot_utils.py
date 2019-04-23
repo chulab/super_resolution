@@ -8,6 +8,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 
 from scipy import signal
+from scipy import stats
 
 from training_data import utils
 
@@ -102,7 +103,18 @@ def find_nearest_square_divisor(x: int):
     n -= 1
 
 def plot_grid(images, file_name=None, **kwargs):
-  """Plots a list of images in a grid"""
+  """Plots a list of images in a grid.
+
+  Either saves or reuturns matplotlib figure.
+
+  Args:
+    images: List of 2D np.ndarrays.
+    file_name: Optional string representing path to save figure.
+    **kwargs: kwargs passed to `plot_with_colorbar_and_scalebar`.
+
+  Returns:
+    If no `file_name` is provided, then returns figure containing plots.
+    """
   r, c = find_nearest_square_divisor(len(images))
   fig, ax = plt.subplots(r, c, figsize=(c * 3, r * 3))
   if isinstance(ax, np.ndarray):
@@ -115,6 +127,8 @@ def plot_grid(images, file_name=None, **kwargs):
   if file_name is not None:
     plt.savefig(file_name)
     plt.close(fig)
+  else:
+    return fig
 
 
 def plot_with_colorbar_and_scalebar(ax, array, scale=None, **kwargs):
@@ -126,3 +140,30 @@ def plot_with_colorbar_and_scalebar(ax, array, scale=None, **kwargs):
   if scale is not None:
     sb = scalebar.ScaleBar(scale)
     ax.add_artist(sb)
+
+def scatter_with_error_bar(
+    x,
+    y,
+    ax,
+):
+  # Bin locations for quantized data.
+  bin_locations = np.unique(x)
+  nbins = bin_locations.shape[0]
+
+  # Bin and compute error bars.
+  n, _ = np.histogram(x, bins=nbins)
+  sy, _ = np.histogram(x, bins=nbins, weights=y)
+  sy2, _ = np.histogram(x, bins=nbins, weights=[i ** 2 for i in y])
+  mean = sy / n
+  std = np.sqrt(sy2 / n - mean * mean)
+
+  # Plot binned data with error bars.
+  ax.errorbar(bin_locations, mean, yerr=std, capsize=10, markeredgewidth=2)
+
+  x = np.array(x)
+  x = x + np.random.randn(x.shape[0]) * .1
+  y = np.array(y)
+  y = y + np.random.randn(y.shape[0]) * .1
+
+  # Scatter plot of data.
+  ax.scatter(x, y, s=2)
