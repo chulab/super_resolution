@@ -1,5 +1,5 @@
 """Utilities for defining loss."""
-
+import logging
 import tensorflow as tf
 import numpy as np
 
@@ -17,8 +17,8 @@ def quantize_tensor(
 
   Args:
     image: tf.Tensor of shape `[batch, height, width]`.
-    quantizations: Quantization (bit depth) of intensity values in output image.
-    Equivalently, number of channels in output image.
+    quantizations: Quantization (bit depth) of intensity values in test_output image.
+    Equivalently, number of channels in test_output image.
     separate_channels: If `True` then the different quantizations are treated as
     different classes.
 
@@ -27,9 +27,9 @@ def quantize_tensor(
   """
   quantization_count = 2 ** bit_depth
   clipped = tf.clip_by_value(tensor, min_val, max_val)
-  scaled = clipped / max_val
-  quantizations = list(np.linspace(-1.e-5, 1., quantization_count))
-  quantized = math_ops._bucketize(scaled, quantizations)
+  quantizations = list(np.arange(-1.e-5, quantization_count))
+  logging.info("using quantizations {}".format(quantizations))
+  quantized = math_ops._bucketize(clipped, quantizations)
   # Reset indices to valid indices into `quantization_count` lenth tensor.
   # The bins go from [low_value, high_value) so `0` -> `1` and
   # `1.` -> `quantiztion_count + 1`
@@ -40,7 +40,22 @@ def quantize_tensor(
     return tf.one_hot(quantized, quantization_count)
 
 
-def proportional_loss_batch(
-
+def inverse_class_weight(
+  logits: tf.Tensor,
+  epsilon: float = 10.,
 ):
-  pass
+  """Computes weights that are the inverse of frequency of class in `logits`.
+
+  Args:
+    logits: tf.Tensor of shape `[B, H, W, C]` where `c` is the class dimension.
+    epsilon: Regularizing term to smooth proportions.
+
+  Returns:
+    `tf.Tensor` of same shape as `logits` containing weights.
+  """
+  real_proportion = (tf.reduce_sum(
+    logits,
+    axis=[0, 1, 2],
+    keepdims=True,
+  ) + epsilon) / (tf.cast(tf.size(logits), tf.float32) + epsilon)
+  return tf.reduce_sum((1 / real_proportion) * logits, axis=-1)
