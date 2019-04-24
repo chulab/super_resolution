@@ -243,3 +243,17 @@ def pool_downsample(distribution_pool_size, observation_pool_size):
     return distribution, observation
 
   return _pool_downsample
+
+
+def per_tensor_scale(
+    tensor: tf.Tensor,
+    min_val: float = 0.,
+    max_val: float = 1.,
+    epsilon = .001,
+):
+  """Linearly scales values in tensor between `min_val` and `max_val`."""
+  shape = list(range(tensor.shape.ndims))
+  tensor = tensor - tf.minimum(tf.reduce_min(tensor), 0.)
+  batch_maximum = tf.reduce_max(tensor, axis=shape[1:], keepdims=True)
+  tensor_scaled = tensor / (batch_maximum + epsilon)
+  return tensor_scaled * (max_val - min_val) + min_val

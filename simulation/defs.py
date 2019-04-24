@@ -37,16 +37,13 @@ class PsfDescription(namedtuple('PsfDescription',
       cls, frequency, mode, frequency_sigma, numerical_aperture)
 
 
-class PSF(namedtuple('PSF', ['psf_description', 'physical_size', 'array'])):
+class PSF(namedtuple('PSF', ['psf_description', 'angle', 'array'])):
   """Contains PSF and description"""
 
-  def __new__(cls, psf_description:PsfDescription, physical_size: Tuple[float],
-              array: np.ndarray):
+  def __new__(cls, psf_description:PsfDescription, angle: float, array: np.ndarray):
     assert isinstance(psf_description, PsfDescription)
-    assert len(physical_size) == 2
-    assert all(s > 0 for s in physical_size)
     assert array.ndim == 2
-    return super(PSF, cls).__new__(cls, psf_description, physical_size, array)
+    return super(PSF, cls).__new__(cls, psf_description, angle, array)
 
 
 class ObservationSpec(namedtuple(

@@ -80,48 +80,34 @@ class testPSFDescription(unittest.TestCase):
 
 class testPSF(unittest.TestCase):
 
-  def _PSF(self, psf_description, physical_size, array):
-    return defs.PSF(psf_description, physical_size, array)
+  def _PSF(self, psf_description, angle, array):
+    return defs.PSF(psf_description, angle, array)
 
   def testPSF(self):
     psf_description = defs.PsfDescription(1e6, 2, .1e6, .1)
-    physical_size = (1e-3, 2e-3)
+    angle = .1
     array = np.random.rand(14, 25)
-    psf = self._PSF(psf_description, physical_size, array)
+    psf = self._PSF(psf_description, angle, array)
 
     np.testing.assert_equal(
       psf_description._asdict(), psf.psf_description._asdict())
 
-    self.assertEqual(physical_size, psf.physical_size)
+    self.assertEqual(angle, psf.angle)
     np.testing.assert_equal(array, psf.array)
 
   def testPSFBadpsfDescription(self):
     psf_description = [1e6, 2, .1e6, .1]
-    physical_size = (1e-3, 2e-3)
+    angle = 1.
     array = np.random.rand(14, 25)
     with self.assertRaises(AssertionError):
-      self._PSF(psf_description, physical_size, array)
-
-  def testPSFBadArrayPhysicalSize(self):
-    psf_description = defs.PsfDescription(1e6, 2, .1e6, .1)
-    physical_size = (-1e-3, 2e-3)
-    array = np.random.rand(14, 25)
-    with self.assertRaises(AssertionError):
-      self._PSF(psf_description, physical_size, array)
-
-  def testPSFBadArrayPhsicalSizeDim(self):
-    psf_description = defs.PsfDescription(1e6, 2, .1e6, .1)
-    physical_size = (1e-3, 2e-3)
-    array = np.random.rand(14, 25, 12)
-    with self.assertRaises(AssertionError):
-      self._PSF(psf_description, physical_size, array)
+      self._PSF(psf_description, angle, array)
 
   def testPSFBadArray(self):
     psf_description = defs.PsfDescription(1e6, 2, .1e6, .1)
-    physical_size = (1e-3, 2e-3)
+    angle = 1.
     array = np.random.rand(14, 25, 12) # Too many dimensions
     with self.assertRaises(AssertionError):
-      self._PSF(psf_description, physical_size, array)
+      self._PSF(psf_description, angle, array)
 
 
 class testObservationSpec(unittest.TestCase):
