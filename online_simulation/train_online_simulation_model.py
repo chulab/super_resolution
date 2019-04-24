@@ -207,6 +207,8 @@ def main():
     max_frequency=args.max_frequency,
     frequency_count=args.frequency_count,
     mode_count=args.mode_count,
+    numerical_aperture=simulation_params.numerical_aperture,
+    frequency_sigma=simulation_params.frequency_sigma,
   )
   simulation_params.psf_descriptions=descriptions
   simulation_params.frequency_sigma=args.frequency_sigma
@@ -234,12 +236,11 @@ def main():
     psf_dimension=simulation_params.psf_dimension,
     grid_dimension=dataset_params.grid_dimension,
     descriptions=simulation_params.psf_descriptions,
-    numerical_aperture=simulation_params.numerical_aperture,
-    frequency_sigma=simulation_params.frequency_sigma,
   )
 
-  fig = plot_utils.plot_grid(psfs, scale=dataset_params.grid_dimension,)
-  save_utils.maybe_save_cloud(fig, args.job_dir)
+  psf_arrays = [p.array for p in psfs]
+  fig = plot_utils.plot_grid(psf_arrays, scale=dataset_params.grid_dimension,)
+  save_utils.maybe_save_cloud(fig, args.job_dir + "/psfs")
 
   model_params.psfs=psfs
 

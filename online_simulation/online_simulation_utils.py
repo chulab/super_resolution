@@ -9,6 +9,7 @@ import tensorflow as tf
 import numpy as np
 
 from simulation import response_functions
+from simulation import defs
 from utils import tf_fft_conv
 
 def simulation_params():
@@ -26,13 +27,27 @@ def grid_psf_descriptions(
     min_frequency,
     max_frequency,
     frequency_count,
-    mode_count=1,
+    mode_count,
+    numerical_aperture,
+    frequency_sigma,
 ):
   angles = np.linspace(0., angle_limit, angle_count)
   frequencies = np.linspace(min_frequency, max_frequency, frequency_count)
   modes = list(range(mode_count))
 
-  return list(itertools.product(angles, frequencies, modes))
+  descriptions = []
+
+  for f, m in itertools.product(frequencies, modes):
+    descriptions.append(
+      defs.PsfDescription(
+        frequency=f,
+        mode=m,
+        frequency_sigma=frequency_sigma,
+        numerical_aperture=numerical_aperture,
+      )
+    )
+
+  return list(itertools.product(angles, descriptions))
 
 
 def _coordinates(lengths, grid_unit, rotation_angle):
@@ -59,28 +74,32 @@ def make_psf(
     psf_dimension:float,
     grid_dimension: float,
     descriptions,
-    numerical_aperture,
-    frequency_sigma,
 ):
   psfs = []
 
-
-  for a, f, m in descriptions:
+  for a, d in descriptions:
     lengths = [psf_dimension, 0, psf_dimension]
 
     coordinates = _coordinates(lengths, grid_dimension, a)
 
     psf_temp = response_functions.gaussian_impulse_response_v2(
       coordinates=coordinates,
-      frequency=f,
-      mode=m,
-      numerical_aperture=numerical_aperture,
-      frequency_sigma=frequency_sigma,
+      frequency=d.frequency,
+      mode=d.mode,
+      numerical_aperture=d.numerical_aperture,
+      frequency_sigma=d.frequency_sigma,
     )[:, 0, :]
 
     # Swap `x` and `z` axes.
     psf_temp = np.transpose(psf_temp, [1, 0])
-    psfs.append(psf_temp.astype(np.float32))
+
+    psf = defs.PSF(
+      psf_description=d,
+      angle=a,
+      array=psf_temp.astype(np.float32)
+    )
+
+    psfs.append(psf)
 
   return psfs
 

@@ -39,20 +39,23 @@ max_count=10\
 " \
     --model_params \
 "\
-bit_depth=4\
+bit_depth=4,\
+log_steps=200\
 " \
     --simulation_params \
 "" \
     --train_params \
 "eval_steps=100,\
-profile_steps=1000" \
+profile_steps=1000,\
+log_step_count=20\
+" \
     --train_steps 4000 \
-    --learning_rate .001 \
+    --learning_rate .0001 \
     --angle_count 20 \
     --angle_limit 90 \
     --frequency_count 8
 
-
+#
 #LOCAL_OUTPUT='online_simulation/test_output'
 #
 ## Train locally
@@ -77,10 +80,10 @@ profile_steps=1000" \
 #"train_steps=10000,\
 #eval_steps=75,\
 #profile_steps=1000" \
-#    --angle_count 4 \
+#    --angle_count 1 \
 #    --angle_limit 90 \
-#    --frequency_count 4 \
+#    --frequency_count 2 \
 #    --mode_count 2 \
 #
 #rm -r $LOCAL_OUTPUT/*
-
+#
