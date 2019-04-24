@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 
+import trainer.imgs2img_transformer as imgs2img
 import tensorflow as tf
 
 # Add `super_resolution` package.
@@ -76,8 +77,10 @@ def main():
 
   parse_fns = model.input_fns()
 
-  hparams = model.make_hparams(4, 501)
+  hparams = model.make_hparams()
   hparams.parse(args.hparams)
+  p_hparams = imgs2img.super_reso_problem_hparams(256, 2 ** hparams.bit_depth, hparams)
+  hparams.add_hparam("problem", p_hparams)
   # Must manually replace `observation_spec`.
   hparams.observation_spec=observation_spec
 

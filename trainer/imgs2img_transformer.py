@@ -234,7 +234,7 @@ class Imgs2imgTransformer(t2t_model.T2TModel):
     # print("Decoder Output", decoder_output.shape)
     output = custom_create_output(decoder_output, rows, cols, targets, hparams, self._problem_hparams.vocab_size["targets"])
     output = tf.squeeze(output, axis=-2)
-    # print("Final Output", output.shape)
+    # print("Final Output", output)
     return output
 
 
@@ -245,7 +245,7 @@ def custom_image_transformer2d_base():
   hparams.batch_size = 1
   hparams.max_length = 256
   hparams.dropout = 0.0
-  hparams.clip_grad_norm = 0.  # i.e. no gradient clipping
+  hparams.clip_grad_norm = .0  # i.e. no gradient clipping
   hparams.optimizer_adam_epsilon = 1e-9
   hparams.learning_rate_decay_scheme = "noam"
   hparams.learning_rate = 0.1
@@ -256,9 +256,10 @@ def custom_image_transformer2d_base():
   hparams.optimizer_adam_beta1 = 0.9
   hparams.optimizer_adam_beta2 = 0.98
   hparams.label_smoothing = 0.0
-  hparams.bottom["targets"] = modalities.identity_bottom
-  #hparams.bottom["targets"] = modalities.make_targets_bottom(
-      # modalities.image_channel_embeddings_bottom)
+  # hparams.bottom["targets"] = modalities.identity_bottom
+  hparams.bottom["targets"] = modalities.symbol_bottom
+  # hparams.bottom["targets"] = modalities.make_targets_bottom(
+  #     modalities.image_channel_embeddings_bottom)
   hparams.top["targets"] = modalities.identity_top
   hparams.norm_type = "layer"
   hparams.layer_prepostprocess_dropout = 0.0
@@ -288,8 +289,8 @@ def custom_image_transformer2d_base():
   hparams.add_hparam("block_length", 256)
   hparams.add_hparam("block_width", 128)
   # Local 2D attention params
-  hparams.add_hparam("query_shape", (16, 16))
-  hparams.add_hparam("memory_flange", (16, 32))
+  hparams.add_hparam("query_shape", (8, 8))
+  hparams.add_hparam("memory_flange", (8, 8))
   hparams.add_hparam("num_encoder_layers", 4)
   hparams.add_hparam("num_decoder_layers", 8)
   # attention type related params
@@ -335,7 +336,7 @@ def custom_img2img_transformer2d_tiny():
   hparams = custom_img2img_transformer2d_base()
   hparams.num_decoder_layers = 2
   hparams.hidden_size = 128
-  hparams.batch_size = 4
+  hparams.batch_size = 5
   hparams.max_length = 128
   hparams.attention_key_channels = hparams.attention_value_channels = 0
   hparams.filter_size = 128
@@ -390,7 +391,7 @@ def super_reso_problem_hparams(input_vocab_size, target_vocab_size, model_hparam
 #
 # features = {
 #   "inputs": tf.constant(inputs, dtype=tf.float32),
-#   "targets": tf.constant(targets, dtype=tf.float32),
+#   "targets": tf.constant(targets, dtype=tf.int32),
 #   "target_space_id": tf.constant(1, dtype=tf.float32),
 # }
 # model = Imgs2imgTransformer(hparams, tf.estimator.ModeKeys.TRAIN, p_hparams)

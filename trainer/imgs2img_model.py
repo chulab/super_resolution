@@ -18,14 +18,16 @@ from utils import array_utils
 from tensor2tensor.layers import common_layers
 
 
-def make_hparams(bit_depth, example_shape) -> tf.contrib.training.HParams:
+def make_hparams() -> tf.contrib.training.HParams:
   """Create a HParams object specifying model hyperparameters."""
-  hparams = imgs2img.custom_img2img_transformer2d_tiny()
-  vocab_size = 2 ** bit_depth
-  p_hparams = imgs2img.super_reso_problem_hparams(vocab_size, vocab_size, hparams)
-  hparams.add_hparam("bit_depth", bit_depth)
-  hparams.add_hparam("example_shape", example_shape)
-  hparams.add_hparam("problem", p_hparams)
+  # hparams = imgs2img.custom_img2img_transformer2d_tiny()
+  hparams = imgs2img.custom_img2img_transformer2d_base()
+  hparams.num_decoder_layers = 4
+  hparams.dropout = 0.3
+  hparams.attention_dropout = 0.3
+  hparams.relu_dropout = 0.3
+  hparams.add_hparam("bit_depth", 4)
+  hparams.add_hparam("example_shape", 501)
   hparams.add_hparam("observation_pool_downsample", 1)
   hparams.add_hparam("distribution_pool_downsample", 1)
   hparams.add_hparam("decay_step", 500)
@@ -96,9 +98,20 @@ def model_fn(features, labels, mode, params):
   logging.info("`distributions` tensor  after gpu preprocess in model is "
                 "{}".format(distributions))
 
+  observations_quantized = loss_utils.quantize_tensor(
+    observations, 8, 0., 10., False)
   distributions_values = loss_utils.quantize_tensor(
-    distributions, params.bit_depth, 0., 4., False)
+    distributions, params.bit_depth, 0., 2 ** params.bit_depth, False)
   distributions_quantized = tf.one_hot(distributions_values, 2 ** params.bit_depth)
+
+  # observations_hook = tf.train.LoggingTensorHook(
+  #     tensors={
+  #       "original": observations,
+  #       "quantized": observations_quantized
+  #     },
+  #     every_n_iter=5,
+  # )
+  # hooks.append(observations_hook)
 
   # Average image along `channel` axis. This corresponds to previous SOA.
   averaged_observation = tf.reduce_mean(observations, axis=-1, keepdims=True)
@@ -113,11 +126,22 @@ def model_fn(features, labels, mode, params):
   # params.num_channels = observations.shape[-1]
   network = imgs2img.Imgs2imgTransformer(params, mode, params.problem)
   features = {
-    "inputs": observations,
+    "inputs": observations_quantized,
     "targets": tf.expand_dims(distributions_values, -1),
     "target_space_id": tf.constant(1, dtype=tf.float32),
   }
+
   predictions_quantized, _ = network.apply(features)
+
+  # input_output_hook = tf.train.LoggingTensorHook(
+  #     tensors={
+  #       "inputs": observations_quantized,
+  #       "targets": tf.expand_dims(distributions_values, -1),
+  #       "predictions": predictions_quantized
+  #     },
+  #     every_n_iter=5,
+  # )
+  # hooks.append(input_output_hook)
 
   logging.info("predictions_quantized {}".format(predictions_quantized))
   logging.info("distributions_quantized {}".format(distributions_quantized))
@@ -177,18 +201,27 @@ def model_fn(features, labels, mode, params):
 
   # Loss. Compare output of nn to original images.
   with tf.variable_scope("loss"):
-    real_proportion = (tf.reduce_sum(
+    proportion = (tf.reduce_sum(
         distributions_quantized,
         axis=[0, 1, 2],
         keepdims=True,
-        ) + 10) / (tf.cast(tf.size(distributions_quantized), tf.float32) + 10)
-    proportional_weights = 1 / (
-      tf.reduce_sum(
-        (1 / real_proportion) * distributions_quantized,
-        axis=-1)
-    )
+        ) + 2 ** params.bit_depth)
+    inv_proportion = 1 / proportion
+    rewards = tf.reduce_sum(
+      (2 ** params.bit_depth) * inv_proportion * distributions_quantized,
+      axis=-1)
+    one_hot_predictions = tf.one_hot(prediction_class, 2 ** params.bit_depth)
+    bets = tf.reduce_sum(inv_proportion * one_hot_predictions
+        ,axis=-1)
+    # bets = tf.reduce_sum(
+    #   (2 ** params.bit_depth) * inv_proportion * one_hot_predictions,
+    #   axis=-1)
+    # bets =  tf.math.negative(tf.reduce_sum(
+    #   tf.math.log(inv_proportion) * one_hot_predictions,
+    #   axis=-1))
+    proportional_weights = rewards * bets
     proportion_hook = tf.train.LoggingTensorHook(
-      tensors={"proportional_weights": proportional_weights[0],},
+      tensors={"proportional_weights": proportional_weights[0], "log_inv": tf.math.log(inv_proportion), "bets": bets},
       every_n_iter=50,
     )
     hooks.append(proportion_hook)
@@ -196,7 +229,7 @@ def model_fn(features, labels, mode, params):
     softmax_loss = tf.losses.softmax_cross_entropy(
       onehot_labels=distributions_quantized,
       logits=predictions_quantized,
-      weights=proportional_weights,
+      weights=proportional_weights
     )
     tf.summary.scalar("softmax_loss", softmax_loss)
 

@@ -5,7 +5,9 @@ BASE_NAME=imgs2img
 BUCKET=gs://chu_super_resolution_experiment
 
 NOW=$(date '+%d_%m_%Y_%H_%M_%S')
-JOB_NAME=${BASE_NAME}_${NOW}
+SUFFIX=
+
+JOB_NAME=${BASE_NAME}_${NOW}_${SUFFIX}
 JOB_DIR=${BUCKET}"/"${JOB_NAME}
 
 STAGING_BUCKET=$BUCKET
@@ -18,7 +20,7 @@ CLOUD_DATA_TRAIN=gs://chu_super_resolution_data/simulation/circle_3_18/train
 CLOUD_DATA_EVAL=gs://chu_super_resolution_data/simulation/circle_3_18/eval
 CLOUD_OBSERVATION_SPEC=gs://chu_super_resolution_data/simulation/circle_3_18/observation_spec.json
 
-#Train on Cloud.
+# Train on Cloud.
 gcloud ml-engine jobs submit training $JOB_NAME \
     --job-dir $JOB_DIR \
     --staging-bucket $STAGING_BUCKET \
@@ -32,7 +34,7 @@ gcloud ml-engine jobs submit training $JOB_NAME \
     --eval_dataset_directory $CLOUD_DATA_EVAL \
     --observation_spec_path $CLOUD_OBSERVATION_SPEC \
     --example_shape 501,501 \
-    --train_steps 1000 \
+    --train_steps 1500 \
     --batch_size 5 \
     --prefetch 2 \
     --interleave_cycle_length 6 \
@@ -40,14 +42,13 @@ gcloud ml-engine jobs submit training $JOB_NAME \
     --profile_steps 1000 \
     --log_step_count 20 \
         --hparams \
-learning_rate=.0001,\
+learning_rate=.00001,\
 observation_pool_downsample=30,\
 distribution_pool_downsample=30,\
 bit_depth=4,\
 
 
 LOCAL_OUTPUT='trainer/test_output'
-
 
 # Train locally
 # gcloud ml-engine local train\
