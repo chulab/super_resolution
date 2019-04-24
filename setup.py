@@ -3,7 +3,8 @@ from setuptools import setup
 
 REQUIRED_PACKAGES = [
     'matplotlib >= 3',
-    'tensor2tensor'
+    'tensor2tensor',
+    'matplotlib-scalebar',
 ]
 
 setup(
