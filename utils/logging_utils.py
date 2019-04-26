@@ -4,11 +4,11 @@ import os
 
 import logging
 
-def set_up_logging():
+def set_up_logging(log_dir: str=''):
   """Sets up logging."""
 
   # Check for environmental variable.
-  file_location = os.getenv('JOB_DIRECTORY', '.')
+  file_location = os.getenv('JOB_DIRECTORY', log_dir)
 
   print("Logging file writing to {}".format(file_location), flush=True)
 
