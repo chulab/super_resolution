@@ -26,7 +26,7 @@ def quantize_tensor(
     segmented_image: tf.Tensor of shape `[batch, height, width, quantizations]`
   """
   clipped = tf.clip_by_value(tensor, min_val, max_val)
-  quantizations = list(np.arange(0, quantization_count))
+  quantizations = list(np.linspace(min_val, max_val, quantization_count + 1))[:-1]
   logging.info("using quantizations {}".format(quantizations))
   quantized = math_ops._bucketize(clipped, quantizations)
   # Reset indices to valid indices into `quantization_count` lenth tensor.
