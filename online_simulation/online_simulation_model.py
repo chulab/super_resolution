@@ -27,7 +27,7 @@ def make_hparams() -> tf.contrib.training.HParams:
 def entry_flow(input_layer):
   network = input_layer
   network = tf.keras.layers.Conv2D(
-      filters=32,
+      filters = 72,
       kernel_size=[3, 3],
       padding="same",
       use_bias=True,
@@ -80,11 +80,27 @@ def downsample_block(
     depthwise_multiplier=1,
 ):
   network = tf.keras.layers.DepthwiseConv2D(
-    depth_multiplier=depthwise_multiplier,
+    depthwise_multiplier=depthwise_multiplier,
     kernel_size=depthwise_kernel_size,
     dilation_rate=1,
     padding="same",
     strides=2,
+  ).apply(input_layer)
+  network = tf.keras.layers.BatchNormalization().apply(network)
+  return network
+
+
+def upsample_block(
+    input_layer,
+    depthwise_kernel_size=[3, 3],
+    filters=64,
+):
+  network = tf.keras.layers.Conv2DTranspose(
+    filters=filters,
+    kernel_size=depthwise_kernel_size,
+    dilation_rate=1,
+    padding="same",
+    strides=1,
   ).apply(input_layer)
   network = tf.keras.layers.BatchNormalization().apply(network)
   return network
@@ -110,6 +126,9 @@ def network(input_layer, training):
       network = downsample_block(network)
 
     network = conv_block(network)
+
+    for i in range(1):
+        network = upsample_block(network)
 
     network = tf.layers.dropout(network, training=training)
 
@@ -156,29 +175,42 @@ def model_fn(features, labels, mode, params):
   eval_hooks = []
 
   with tf.name_scope("distributions"):
-    full_resolution_distributions = features
-    full_resolution_distributions = tf.cast(full_resolution_distributions, tf.float32)
+    full_resolution_scatterer = features['scatterer_distribution']
+    full_resolution_probability = features['probability_distribution']
 
-    distributions = full_resolution_distributions[tf.newaxis, ..., tf.newaxis]
+    def downsample_distribution(d, downsample):
+      d = d[tf.newaxis, ..., tf.newaxis]
+      d = downsample_by_pool(d, downsample)
+      return d[..., 0]
 
-    DOWNSAMPLE=32
-    distributions = downsample_by_pool(distributions, DOWNSAMPLE) * (DOWNSAMPLE ** 2)
-    distributions = distributions[..., 0]
-    logging.info("distribution {}".format(distributions))
+    DOWNSAMPLE = 16
+    downsample_scatterer = downsample_distribution(full_resolution_scatterer, DOWNSAMPLE)
+    downsample_probability = downsample_distribution(full_resolution_probability, DOWNSAMPLE)
 
-    # NORMALIZE DISTRIBUTIONS.
-    distributions = preprocess.per_tensor_scale(distributions, 0., float(2 ** params.bit_depth))
-    logging.info("normalized distribution {}".format(distributions))
+    # # NORMALIZE DISTRIBUTIONS.
+    # distributions_normalized = preprocess.per_tensor_scale(distributions, 0., float(2 ** params.bit_depth))
+    # logging.info("normalized distribution {}".format(distributions_normalized))
 
-    distributions_quantized = loss_utils.quantize_tensor(
-      distributions, 2 ** params.bit_depth, 0., 2 ** params.bit_depth)
-    logging.info("distribution quantized {}".format(distributions_quantized))
+    # distributions_quantized = loss_utils.quantize_tensor(
+    #   distributions_normalized, 2 ** params.bit_depth, 0., 2 ** params.bit_depth)
+    # distributions_quantized = loss_utils.quantize_tensor(
+    #   distributions, 2 ** params.bit_depth, 0., 2 ** params.bit_depth)
+    probability_distribution_quantized = loss_utils.quantize_tensor(
+      downsample_probability, 2 ** params.bit_depth, 0., 1.)
+
+    # logging.info("distribution quantized {}".format(probability_distribution_quantized))
+
+    logging.info("probability_distribution_quantized {}".format(probability_distribution_quantized))
+
 
     distribution_hook = tf.train.LoggingTensorHook(
       tensors={
-        "full_resolution_distributions": full_resolution_distributions,
-        "downsampled_distribution": distributions,
-        "max_downsampled": tf.math.reduce_max(distributions)
+        "full_resolution_scatterer": full_resolution_scatterer,
+        "downsampled_scatterer": downsample_scatterer,
+        "max_downsampled_scatterer": tf.math.reduce_max(downsample_scatterer),
+        "full_resolution_prob": full_resolution_probability,
+        "downsampled_prob": downsample_probability,
+        "max_downsampled_prob": tf.math.reduce_max(downsample_probability)
       },
       every_n_iter=params.log_steps,
     )
@@ -190,8 +222,8 @@ def model_fn(features, labels, mode, params):
     tf_psfs = [tf.Variable(p.array, trainable=False) for p in params.psfs]
     simulator = online_simulation_utils.USsimulator(psfs=tf_psfs)
     observations = online_simulation_utils.observation_from_distribution(
-      simulator, full_resolution_distributions)
-    observations = preprocess.per_tensor_scale(observations, -1., 1.)
+      simulator, full_resolution_scatterer)
+    observations_normalized = preprocess.per_tensor_scale(observations, -1., 1.)
     logging.info("observations {}".format(observations))
 
     observation_list = array_utils.reduce_split_tensor(observations[0], -1)
@@ -202,6 +234,8 @@ def model_fn(features, labels, mode, params):
       tensors={
         "observation_max": tf.math.reduce_max(observations, axis=[1, 2]),
         "observation_min": tf.math.reduce_min(observations, axis=[1, 2]),
+        "observation_normalized_max": tf.math.reduce_max(observations_normalized, axis=[1, 2]),
+        "observation_normalized_min": tf.math.reduce_min(observations_normalized, axis=[1, 2]),
       },
       every_n_iter=params.log_steps,
     )
@@ -235,7 +269,7 @@ def model_fn(features, labels, mode, params):
     def _logit_to_class(logit):
       return tf.argmax(logit, -1)
 
-    distribution_class = _logit_to_class(distributions_quantized)
+    distribution_class = _logit_to_class(probability_distribution_quantized)
     prediction_class = _logit_to_class(predictions_quantized)
 
     # Log fraction nonzero.
@@ -250,7 +284,6 @@ def model_fn(features, labels, mode, params):
     tf.summary.scalar("nonzero_fraction", nonzero_fraction)
     nonzero_hook = tf.train.LoggingTensorHook(
       tensors={
-
         "predicted_nonzero_fraction": nonzero_fraction,
         "true_nonzero_count": true_nonzero_count,
         "true_nonzero_fraction": true_nonzero_fraction,
@@ -273,6 +306,7 @@ def model_fn(features, labels, mode, params):
       )
       eval_hooks.append(image_hook)
 
+      dist_summary = tf.summary.image("full_resolution_scatterer", full_resolution_scatterer[0], 1)
       dist_summary = tf.summary.image("distributions", dist_image, 1)
       pred_summary = tf.summary.image("predictions", pred_image, 1)
       diff_summary = tf.summary.image("difference",
@@ -288,9 +322,15 @@ def model_fn(features, labels, mode, params):
 
     with tf.name_scope("predictions"):
       predict_output = {
+        "full_resolution_scatterer": full_resolution_scatterer,
+        "full_resolution_probability": full_resolution_probability,
+        "downsample_scatterer": downsample_scatterer,
+        "downsample_probability": downsample_probability,
         "distribution_class": distribution_class,
-        "observations": observations,
-        "prediction_class": prediction_class
+        "normalized_observations": observations_normalized,
+        "observations_unnormalized": observations,
+        "prediction_class": prediction_class,
+        "average_observation": average_obs,
       }
 
     if mode == tf.estimator.ModeKeys.PREDICT:
@@ -300,7 +340,7 @@ def model_fn(features, labels, mode, params):
       )
 
   with tf.name_scope("loss"):
-    proportional_weights = loss_utils.inverse_class_weight(distributions_quantized)
+    proportional_weights = loss_utils.inverse_class_weight(probability_distribution_quantized)
     proportion_hook = tf.train.LoggingTensorHook(
       tensors={"proportional_weights": proportional_weights[0],
                "min_weight": tf.reduce_min(proportional_weights)},
@@ -309,7 +349,7 @@ def model_fn(features, labels, mode, params):
     train_hooks.append(proportion_hook)
 
     softmax_loss = tf.losses.softmax_cross_entropy(
-      onehot_labels=distributions_quantized,
+      onehot_labels=probability_distribution_quantized,
       logits=predictions_quantized,
       weights=proportional_weights,
     )
