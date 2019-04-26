@@ -211,14 +211,14 @@ def main():
     if args.train_steps is not None:
   train_params.train_steps=args.train_steps
 
-  train_input_fn =lambda: online_dataset_utils.random_circles_dataset(
+  train_input_fn = lambda: online_dataset_utils.random_circles_dataset(
     physical_dimension=dataset_params.physical_dimension,
     grid_unit=dataset_params.grid_dimension,
     min_radius=dataset_params.min_radius,
     max_radius=dataset_params.max_radius,
     max_count=dataset_params.max_count,
-    background_noise=dataset_params.background_noise,
     scatterer_density=dataset_params.scatterer_density,
+    db = dataset_params.db
   )
 
   simulation_params.psf_descriptions=online_simulation_utils.grid_psf_descriptions(

@@ -17,7 +17,7 @@ def dataset_params():
     max_radius=1.5e-3,
     max_count=4,
     background_noise=0,
-    scatterer_density=2e9,
+    db=10.,
   )
 
 
@@ -105,7 +105,6 @@ def random_circles(
     # Intensity.
     intensity = tf.random.uniform([1], min_intensity, max_intensity,
                                   dtype=tf.float32)
-
     # Add circle.
     box += tf.cast(_circle(coordinates, origin, radius),
                    tf.float32) * intensity
@@ -128,6 +127,7 @@ def _poisson_dataset_map(
     probability_distribution,
     lambda_multiplier,
 ):
+  """Returns dictionary of original probability and noisy distribution."""
   scatterer_distribution = poisson_noise(probability_distribution,
                                          lambda_multiplier)
   return {
@@ -161,14 +161,37 @@ def normalize(
   return tensor / tf.reduce_max(tensor)
 
 
+def db_scale(
+tensor,
+db=10,
+ ):
+  """Scales `tensor` so that values are compressed into a 10db range.
+
+  Example:
+    with default 10db:
+      # tensor == (0, .5, 1)
+      tensor_db = db_scale(tensor)
+      # tensor_db == (.1, .316, 1.)
+
+  args:
+    tensor: `tf.Tensor` with values to be scaled. It is assumed that values are
+    in the range (0, 1).
+    db: decibel range of output.
+
+  Returns:
+    `tf.Tensor` of same shape as `tensor` containing scaled values.
+  """
+  scaled = 10 ** (tensor * db / 10)
+  return normalize(scaled)
+
 def random_circles_dataset(
     physical_dimension,
     grid_unit,
     min_radius,
     max_radius,
     max_count,
-    background_noise,
     scatterer_density,
+    db,
 ):
   physical_dimensions = [physical_dimension] * 2
 
@@ -187,13 +210,15 @@ def random_circles_dataset(
     min_intensity=0.,
     max_intensity=1.,
     max_count=max_count,
-    background_noise=background_noise,
+    background_noise=0.,
   ), num_parallel_calls=-1)
 
   # Normalize probability distributions. This means that the different features
   # will have a constant relative probability (p1/p2) but the absolute values of
   # all probabilities will be scaled so the maximum probability is 1.
-  dataset = dataset.map(normalize)
+  dataset = dataset.map(normalize, num_parallel_calls=-1)
+
+  dataset = dataset.map(labda tensor: db_scale(tensor, db), num_parallel_calls=-1)
 
   lambda_multiplier = density_to_lambda(scatterer_density, grid_unit)
 
@@ -201,5 +226,7 @@ def random_circles_dataset(
   dataset = dataset.map(lambda tensor: _poisson_dataset_map(
     probability_distribution=tensor, lambda_multiplier=lambda_multiplier
   ), num_parallel_calls=-1)
+
+  dataset = dataset.prefetch(1)
 
   return dataset
