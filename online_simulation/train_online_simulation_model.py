@@ -143,6 +143,11 @@ def parse_args():
     default=1e9,
   )
   parser.add_argument(
+    '--db',
+    type=float,
+    default=10.,
+  )
+  parser.add_argument(
     '--angle_count',
     type=int,
     default=1,
@@ -195,8 +200,9 @@ def main():
   logging_utils.set_up_logging()
 
   dataset_params = online_dataset_utils.dataset_params()
-  dataset_params.parse(args.dataset_params)
   dataset_params.scatterer_density = args.scatterer_density
+  dataset_params.db = args.db
+  dataset_params.parse(args.dataset_params)
 
   simulation_params = online_simulation_utils.simulation_params()
   simulation_params.parse(args.simulation_params)
