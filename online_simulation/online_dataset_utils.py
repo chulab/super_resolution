@@ -197,7 +197,7 @@ def random_circles_dataset(
 
   coordinates = tf.cast(tf.stack(response_functions.coordinate_grid(
       physical_dimensions, [grid_unit] * 2, False),
-    -1), tf.float32)
+    -1), tf.float32)[:-1, :-1]
 
   dummy_dataset = tf.data.Dataset.from_tensors(0).repeat(None)
 
