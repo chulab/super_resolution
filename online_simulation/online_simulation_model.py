@@ -100,7 +100,7 @@ def _upsample_block(
   network = tf.keras.layers.Conv2DTranspose(
     filters=filters,
     kernel_size=depthwise_kernel_size,
-    dilation_rate=1,
+    dilation_rate=2,
     padding="same",
     strides=1,
   ).apply(input_layer)
