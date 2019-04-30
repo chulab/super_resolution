@@ -29,7 +29,7 @@ def entry_flow(input_layer):
   """Begining of CNN."""
   network = input_layer
   network = tf.keras.layers.Conv2D(
-      filters=72,
+      filters=160,
       kernel_size=[3, 3],
       padding="same",
       use_bias=True,
@@ -79,10 +79,10 @@ def _conv_block(
 def downsample_block(
     input_layer,
     depthwise_kernel_size=[3, 3],
-    depthwise_multiplier=1,
+    depth_multiplier=1,
 ):
   network = tf.keras.layers.DepthwiseConv2D(
-    depthwise_multiplier=depthwise_multiplier,
+    depth_multiplier=depth_multiplier,
     kernel_size=depthwise_kernel_size,
     dilation_rate=1,
     padding="same",
