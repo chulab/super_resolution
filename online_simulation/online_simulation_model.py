@@ -100,9 +100,9 @@ def _upsample_block(
   network = tf.keras.layers.Conv2DTranspose(
     filters=filters,
     kernel_size=depthwise_kernel_size,
-    dilation_rate=2,
+    dilation_rate=1,
     padding="same",
-    strides=1,
+    strides=2,
   ).apply(input_layer)
   network = tf.keras.layers.BatchNormalization().apply(network)
   return network
