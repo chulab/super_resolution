@@ -12,6 +12,7 @@ from preprocessing import preprocess
 from preprocessing import signals
 from utils import array_utils
 
+
 def make_hparams() -> tf.contrib.training.HParams:
   """Create a HParams object specifying model hyperparameters."""
   return tf.contrib.training.HParams(
@@ -25,16 +26,17 @@ def make_hparams() -> tf.contrib.training.HParams:
 
 
 def entry_flow(input_layer):
+  """Begining of CNN."""
   network = input_layer
   network = tf.keras.layers.Conv2D(
-      filters = 72,
+      filters=72,
       kernel_size=[3, 3],
       padding="same",
       use_bias=True,
       activation=tf.nn.leaky_relu
     ).apply(network)
-  network=tf.keras.layers.BatchNormalization().apply(network)
-  network=tf.keras.layers.Conv2D(
+  network = tf.keras.layers.BatchNormalization().apply(network)
+  network = tf.keras.layers.Conv2D(
       filters=64,
       kernel_size=[3, 3],
       padding="same",
@@ -42,11 +44,11 @@ def entry_flow(input_layer):
       activation=tf.nn.leaky_relu,
       strides=2,
     ).apply(network)
-  network=tf.keras.layers.BatchNormalization().apply(network)
+  network = tf.keras.layers.BatchNormalization().apply(network)
   return network
 
 
-def conv_block(
+def _conv_block(
     input_layer,
     filters=64,
     kernel_size=[3, 3],
@@ -90,7 +92,7 @@ def downsample_block(
   return network
 
 
-def upsample_block(
+def _upsample_block(
     input_layer,
     depthwise_kernel_size=[3, 3],
     filters=64,
@@ -107,7 +109,7 @@ def upsample_block(
 
 
 def network(input_layer, training):
-  """Defines network.
+  """Definition of network.
 
   Args:
     `input_layer`: `tf.Tensor` node which outputs shapes `[b, h, w, c]`.
@@ -122,13 +124,13 @@ def network(input_layer, training):
     network = entry_flow(network)
 
     for i in range(4):
-      network = conv_block(network)
+      network = _conv_block(network)
       network = downsample_block(network)
 
-    network = conv_block(network)
+    network = _conv_block(network)
 
     for i in range(1):
-        network = upsample_block(network)
+        network = _upsample_block(network)
 
     network = tf.layers.dropout(network, training=training)
 
@@ -136,7 +138,7 @@ def network(input_layer, training):
 
 
 def downsample_by_pool(tensor, kernel_size):
-  pool_layer=tf.keras.layers.AveragePooling2D(kernel_size, padding='same')
+  pool_layer = tf.keras.layers.AveragePooling2D(kernel_size, padding='same')
   return pool_layer.apply(tensor)
 
 
@@ -184,8 +186,10 @@ def model_fn(features, labels, mode, params):
       return d[..., 0]
 
     DOWNSAMPLE = 16
-    downsample_scatterer = downsample_distribution(full_resolution_scatterer, DOWNSAMPLE)
-    downsample_probability = downsample_distribution(full_resolution_probability, DOWNSAMPLE)
+    downsample_scatterer = downsample_distribution(
+      full_resolution_scatterer, DOWNSAMPLE)
+    downsample_probability = downsample_distribution(
+      full_resolution_probability, DOWNSAMPLE)
 
     # # NORMALIZE DISTRIBUTIONS.
     # distributions_normalized = preprocess.per_tensor_scale(distributions, 0., float(2 ** params.bit_depth))
@@ -201,8 +205,6 @@ def model_fn(features, labels, mode, params):
     # logging.info("distribution quantized {}".format(probability_distribution_quantized))
 
     logging.info("probability_distribution_quantized {}".format(probability_distribution_quantized))
-
-
     distribution_hook = tf.train.LoggingTensorHook(
       tensors={
         "full_resolution_scatterer": full_resolution_scatterer,
@@ -234,8 +236,10 @@ def model_fn(features, labels, mode, params):
       tensors={
         "observation_max": tf.math.reduce_max(observations, axis=[1, 2]),
         "observation_min": tf.math.reduce_min(observations, axis=[1, 2]),
-        "observation_normalized_max": tf.math.reduce_max(observations_normalized, axis=[1, 2]),
-        "observation_normalized_min": tf.math.reduce_min(observations_normalized, axis=[1, 2]),
+        "observation_normalized_max": tf.math.reduce_max(
+          observations_normalized, axis=[1, 2]),
+        "observation_normalized_min": tf.math.reduce_min(
+          observations_normalized, axis=[1, 2]),
       },
       every_n_iter=params.log_steps,
     )
@@ -244,7 +248,8 @@ def model_fn(features, labels, mode, params):
     for i, psf in enumerate(tf_psfs):
       tf.summary.image("obs_{}".format(i), observations[..., i, tf.newaxis], 1)
 
-    tf.summary.image("average_observation", average_obs[tf.newaxis, ..., tf.newaxis], 1)
+    tf.summary.image(
+      "average_observation", average_obs[tf.newaxis, ..., tf.newaxis], 1)
 
   if mode == tf.estimator.ModeKeys.TRAIN:
     training = True
@@ -317,7 +322,7 @@ def model_fn(features, labels, mode, params):
       images_summaries = tf.summary.merge(images_summaries)
 
       image_summary_hook = tf.train.SummarySaverHook(
-        summary_op=images_summaries, save_secs=120)
+        summary_op=images_summaries, save_secs=60)
       eval_hooks.append(image_summary_hook)
 
     with tf.name_scope("predictions"):
@@ -340,7 +345,8 @@ def model_fn(features, labels, mode, params):
       )
 
   with tf.name_scope("loss"):
-    proportional_weights = loss_utils.inverse_class_weight(probability_distribution_quantized)
+    proportional_weights = loss_utils.inverse_class_weight(
+      probability_distribution_quantized)
     proportion_hook = tf.train.LoggingTensorHook(
       tensors={"proportional_weights": proportional_weights[0],
                "min_weight": tf.reduce_min(proportional_weights)},

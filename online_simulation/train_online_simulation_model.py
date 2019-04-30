@@ -18,8 +18,8 @@ from online_simulation import online_simulation_utils
 
 from utils import logging_utils
 
-_PREDICT="PREDICT"
-_TRAIN="TRAIN"
+_PREDICT = "PREDICT"
+_TRAIN = "TRAIN"
 
 
 def make_train_params():
@@ -120,23 +120,23 @@ def parse_args():
 
   parser.add_argument(
     '--simulation_params',
-    help = 'Comma separated list of "name=value" pairs.',
-    default = '',
+    help='Comma separated list of "name=value" pairs.',
+    default='',
   )
 
   parser.add_argument(
     '--train_params',
-    help = 'Comma separated list of "name=value" pairs.',
-    default = '',
+    help='Comma separated list of "name=value" pairs.',
+    default='',
   )
 
   parser.add_argument(
     '--warm_start_from',
-    help = 'Warm start file.',
-    default = None,
+    help='Warm start file.',
+    default=None,
   )
 
-  ## HPARAMETER TUNING ARGS
+  # HPARAMETER TUNING ARGS
   parser.add_argument(
     '--scatterer_density',
     type=float,
@@ -210,12 +210,12 @@ def main():
   model_params = online_simulation_model.make_hparams()
   model_params.parse(args.model_params)
   if args.learning_rate is not None:
-      model_params.learning_rate=args.learning_rate
+      model_params.learning_rate = args.learning_rate
 
-    train_params = make_train_params()
-    train_params.parse(args.train_params)
-    if args.train_steps is not None:
-  train_params.train_steps=args.train_steps
+  train_params = make_train_params()
+  train_params.parse(args.train_params)
+  if args.train_steps is not None:
+    train_params.train_steps = args.train_steps
 
   train_input_fn = lambda: online_dataset_utils.random_circles_dataset(
     physical_dimension=dataset_params.physical_dimension,
@@ -224,10 +224,10 @@ def main():
     max_radius=dataset_params.max_radius,
     max_count=dataset_params.max_count,
     scatterer_density=dataset_params.scatterer_density,
-    db = dataset_params.db
+    db=dataset_params.db
   )
 
-  simulation_params.psf_descriptions=online_simulation_utils.grid_psf_descriptions(
+  simulation_params.psf_descriptions = online_simulation_utils.grid_psf_descriptions(
     angle_limit=args.angle_limit,
     angle_count=args.angle_count,
     min_frequency=args.min_frequency,
@@ -249,9 +249,9 @@ def main():
   fig = plot_utils.plot_grid(psf_arrays, scale=dataset_params.grid_dimension,)
   save_utils.maybe_save_cloud(fig, args.job_dir + "/psfs")
 
-  model_params.psfs=psfs
+  model_params.psfs = psfs
 
-  if args.mode==_TRAIN:
+  if args.mode == _TRAIN:
     train_and_evaluate(
       output_directory=args.job_dir,
       train_input=train_input_fn,

@@ -1,6 +1,4 @@
 """Utilities for performing online simulation."""
-from typing import List
-
 import itertools
 
 from scipy.spatial import transform
@@ -12,10 +10,11 @@ from simulation import response_functions
 from simulation import defs
 from utils import tf_fft_conv
 
+
 def simulation_params():
   return tf.contrib.training.HParams(
     psf_dimension=2e-3,
-    psf_descriptions=None, # (angle, frequency, mode) tuples
+    psf_descriptions=None,  # (angle, frequency, mode) tuples
     frequency_sigma=1e6,
     numerical_aperture=.125,
   )
@@ -71,7 +70,7 @@ def _coordinates(lengths, grid_unit, rotation_angle):
 
 
 def make_psf(
-    psf_dimension:float,
+    psf_dimension: float,
     grid_dimension: float,
     descriptions,
 ):
@@ -111,6 +110,7 @@ class USsimulator():
 
   def simulate(self, distribution):
     return [tf_fft_conv.fft_correlate(distribution, psf, mode='same') for psf in self.psfs]
+
 
 def observation_from_distribution(sim, distribution):
   observations = sim.simulate(distribution)

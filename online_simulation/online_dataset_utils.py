@@ -21,7 +21,6 @@ def dataset_params():
   )
 
 
-
 def _circle(
     coordinates: tf.Tensor,
     origin: tf.Tensor,
@@ -162,9 +161,9 @@ def normalize(
 
 
 def db_scale(
-tensor,
-db=10,
- ):
+  tensor,
+  db=10,
+):
   """Scales `tensor` so that values are compressed into a 10db range.
 
   Example:
@@ -183,6 +182,7 @@ db=10,
   """
   scaled = 10 ** (tensor * db / 10)
   return normalize(scaled)
+
 
 def random_circles_dataset(
     physical_dimension,
@@ -218,7 +218,7 @@ def random_circles_dataset(
   # all probabilities will be scaled so the maximum probability is 1.
   dataset = dataset.map(normalize, num_parallel_calls=-1)
 
-  dataset = dataset.map(labda tensor: db_scale(tensor, db), num_parallel_calls=-1)
+  dataset = dataset.map(lambda tensor: db_scale(tensor, db), num_parallel_calls=-1)
 
   lambda_multiplier = density_to_lambda(scatterer_density, grid_unit)
 
