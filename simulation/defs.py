@@ -51,7 +51,7 @@ class PSF(namedtuple('PSF', ['psf_description', 'angle', 'array'])):
     angle: float,
     array: Union[np.ndarray, tf.Tensor]
   ):
-    assert isinstance(psf_description, defs.PsfDescription)
+    assert isinstance(psf_description, PsfDescription)
     if isinstance(array, np.ndarray):
       assert array.ndim == 2
     else:  # Is `Tensor`.
