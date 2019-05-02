@@ -95,7 +95,7 @@ def make_psf(
     psf = defs.PSF(
       psf_description=d,
       angle=a,
-      array=tf.Variable(psf_temp, dtype=np.float32, trainable=)
+      array=tf.Variable(psf_temp, dtype=np.float32, trainable=False)
     )
 
     psfs.append(psf)
