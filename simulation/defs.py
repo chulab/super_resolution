@@ -47,7 +47,7 @@ class PSF(namedtuple('PSF', ['psf_description', 'angle', 'array'])):
 
   def __new__(
     cls,
-    psf_description: defs.PsfDescription,
+    psf_description: PsfDescription,
     angle: float,
     array: Union[np.ndarray, tf.Tensor]
   ):
