@@ -1,6 +1,5 @@
 """Compute convolution in tensorflow using fft."""
 import tensorflow as tf
-import numpy as np
 from tensorflow.python.ops import manip_ops
 
 from online_simulation import online_dataset_utils
@@ -185,5 +184,6 @@ def signal_and_envelope(tensor_a, tensor_b, mode, sampling_rate, frequency, angl
 
 def centered_filter(coordinates, radius, theta, size):
   """Creates filter that is a hard circle located at `(radius, theta)`."""
-  center = tf.stack([tf.cos(theta) * radius, -1 * tf.sin(theta) * radius])
+  center = tf.cast(
+    tf.stack([tf.cos(theta) * radius, -1 * tf.sin(theta) * radius]), tf.float32)
   return online_dataset_utils._circle(coordinates, center, size)
