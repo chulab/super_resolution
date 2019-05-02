@@ -9,7 +9,8 @@ import numpy as np
 
 
 _SPEED_OF_SOUND_WATER = 1498  # m/s
-_SPEED_OF_SOUND_TISSUE = 1540 # m/s
+_SPEED_OF_SOUND_TISSUE = 1540  # m/s
+
 
 def frequency_from_wavelength(wavelength):
   """Computes `frequency` in Hz given `wavelength` in meters."""
@@ -21,7 +22,8 @@ def wavelength_from_frequency(frequency):
   return _SPEED_OF_SOUND_WATER / frequency
 
 
-class PsfDescription(namedtuple('PsfDescription',
+class PsfDescription(
+  namedtuple('PsfDescription',
              ['frequency', 'mode', 'frequency_sigma', 'numerical_aperture'])):
   """Contains description of PSF."""
 
@@ -30,7 +32,7 @@ class PsfDescription(namedtuple('PsfDescription',
     assert isinstance(frequency, float)
     assert 0 <= frequency
     assert isinstance(mode, int)
-    assert 0<=mode
+    assert 0 <= mode
     assert isinstance(frequency_sigma, float)
     assert 0 <= frequency_sigma
     assert isinstance(numerical_aperture, float)
@@ -45,15 +47,15 @@ class PSF(namedtuple('PSF', ['psf_description', 'angle', 'array'])):
 
   def __new__(
     cls,
-    psf_description: PsfDescription,
+    psf_description: defs.PsfDescription,
     angle: float,
     array: Union[np.ndarray, tf.Tensor]
   ):
-    assert isinstance(psf_description, PsfDescription)
-    if isinstance(array, tf.Tensor):
-      assert array.shape.ndim == 2
-    else:
+    assert isinstance(psf_description, defs.PsfDescription)
+    if isinstance(array, np.ndarray):
       assert array.ndim == 2
+    else:  # Is `Tensor`.
+      assert len(array.shape.as_list()) == 2
     return super(PSF, cls).__new__(cls, psf_description, angle, array)
 
 
@@ -81,8 +83,8 @@ class ObservationSpec(namedtuple(
       cls, grid_dimension, angles, psf_descriptions)
 
 
-class USImage(namedtuple(
-  'USImage', ['image', 'angle', 'psf_description'])):
+class USImage(
+  namedtuple('USImage', ['image', 'angle', 'psf_description'])):
 
   def __new(cls, image: np.ndarray, angle: float,
             psf_description: PsfDescription):

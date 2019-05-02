@@ -163,8 +163,8 @@ def signal_and_envelope(tensor_a, tensor_b, mode, sampling_rate, frequency, angl
 
   ft_grid_unit = sampling_rate / dft_size[0]
   length_ft = [(s - 1) * ft_grid_unit for s in dft_size]
-  ft_coordinates = tf.cast(np.stack(response_functions.coordinate_grid(
-      length_ft, [ft_grid_unit] * len(length_ft), True), -1), tf.float32)
+  ft_coordinates = tf.stack(response_functions.coordinate_grid(
+      length_ft, [ft_grid_unit] * len(length_ft), center=True, mode="TF"), -1)
 
   fftshift_tensor = fftshift(ft_tensor)
 
@@ -185,5 +185,5 @@ def signal_and_envelope(tensor_a, tensor_b, mode, sampling_rate, frequency, angl
 
 def centered_filter(coordinates, radius, theta, size):
   """Creates filter that is a hard circle located at `(radius, theta)`."""
-  center = [np.cos(theta) * radius, -1 * np.sin(theta) * radius]
-  return online_dataset_utils._circle(coordinates, tf.convert_to_tensor(center, dtype=tf.float32), size)
+  center = tf.stack([tf.cos(theta) * radius, -1 * tf.sin(theta) * radius])
+  return online_dataset_utils._circle(coordinates, center, size)

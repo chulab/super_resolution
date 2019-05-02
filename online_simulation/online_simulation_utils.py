@@ -95,7 +95,7 @@ def make_psf(
     psf = defs.PSF(
       psf_description=d,
       angle=a,
-      array=psf_temp.astype(np.float32)
+      array=tf.Variable(psf_temp, dtype=np.float32)
     )
 
     psfs.append(psf)
@@ -103,27 +103,19 @@ def make_psf(
   return psfs
 
 
-class USsimulator():
-
-  def __init__(self, psfs, grid_dimension):
-    self.psfs = psfs
-    self.sampling_rate_time = (grid_dimension / defs._SPEED_OF_SOUND_TISSUE) ** -1
-
-  def simulate(self, distribution):
-    return [
-        tf_fft_conv.signal_and_envelope(
-          distribution,
-          tf.Variable(psf.array, trainable=False),
-          mode='same',
-          sampling_rate=self.sampling_rate_time,
-          frequency=psf.psf_description.frequency,
-          angle=psf.angle * np.pi / 180,
-          freq_sigma=psf.psf_description.frequency_sigma * 2,
-        ) for psf in self.psfs]
-
-
-def observation_from_distribution(sim, distribution):
-  observations = sim.simulate(distribution)
+def observation_from_distribution(distribution, psfs, grid_dimension):
+  """Computes simulated US image using `psfs`."""
+  sampling_rate_time = (grid_dimension / defs._SPEED_OF_SOUND_TISSUE) ** -1
+  observations = [
+      tf_fft_conv.signal_and_envelope(
+        distribution,
+        psf.array,
+        mode='same',
+        sampling_rate=sampling_rate_time,
+        frequency=psf.psf_description.frequency,
+        angle=psf.angle * np.pi / 180,
+        freq_sigma=psf.psf_description.frequency_sigma * 2,
+      ) for psf in psfs]
   # Extract envelopes from `(envelope, signal)` tuple.
   envelopes = [o[0] for o in observations]
   return tf.stack(envelopes, -1)[tf.newaxis]
