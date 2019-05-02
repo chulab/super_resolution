@@ -76,10 +76,10 @@ def make_psf(
 ):
   psfs = []
 
-  for a, d in descriptions:
-    lengths = [psf_dimension, 0, psf_dimension]
+  lengths = [psf_dimension, 0, psf_dimension]
+  coordinates = _coordinates(lengths, grid_dimension, a)
 
-    coordinates = _coordinates(lengths, grid_dimension, a)
+  for a, d in descriptions:
 
     psf_temp = response_functions.gaussian_impulse_response_v2(
       coordinates=coordinates,
@@ -95,7 +95,7 @@ def make_psf(
     psf = defs.PSF(
       psf_description=d,
       angle=a,
-      array=tf.Variable(psf_temp, dtype=np.float32)
+      array=tf.Variable(psf_temp, dtype=np.float32, trainable=False)
     )
 
     psfs.append(psf)
