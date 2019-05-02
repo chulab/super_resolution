@@ -105,13 +105,25 @@ def make_psf(
 
 class USsimulator():
 
-  def __init__(self, psfs):
+  def __init__(self, psfs, grid_dimension):
     self.psfs = psfs
+    self.sampling_rate_time = (grid_dimension / defs._SPEED_OF_SOUND_TISSUE) ** -1
 
   def simulate(self, distribution):
-    return [tf_fft_conv.fft_correlate(distribution, psf, mode='same') for psf in self.psfs]
+    return [
+        tf_fft_conv.signal_and_envelope(
+          distribution,
+          tf.Variable(psf.array, trainable=False),
+          mode='same',
+          sampling_rate=self.sampling_rate_time,
+          frequency=psf.psf_description.frequency,
+          angle=psf.angle * np.pi / 180,
+          freq_sigma=psf.psf_description.frequency_sigma * 2,
+        ) for psf in self.psfs]
 
 
 def observation_from_distribution(sim, distribution):
   observations = sim.simulate(distribution)
-  return tf.stack(observations, -1)[tf.newaxis]
+  # Extract envelopes from `(envelope, signal)` tuple.
+  envelopes = [o[0] for o in observations]
+  return tf.stack(envelopes, -1)[tf.newaxis]
