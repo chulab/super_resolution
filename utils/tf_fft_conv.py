@@ -185,5 +185,5 @@ def signal_and_envelope(tensor_a, tensor_b, mode, sampling_rate, frequency, angl
 
 def centered_filter(coordinates, radius, theta, size):
   """Creates filter that is a hard circle located at `(radius, theta)`."""
-  center = [np.cos(theta) * radius, np.sin(theta) * radius]
+  center = [np.cos(theta) * radius, -1 * np.sin(theta) * radius]
   return online_dataset_utils._circle(coordinates, tf.convert_to_tensor(center, dtype=tf.float32), size)

@@ -1,9 +1,12 @@
 """Common defintions."""
 
 from collections import namedtuple
-from typing import Tuple
+from typing import Union
+
+import tensorflow as tf
 
 import numpy as np
+
 
 _SPEED_OF_SOUND_WATER = 1498  # m/s
 _SPEED_OF_SOUND_TISSUE = 1540 # m/s
@@ -40,9 +43,17 @@ class PsfDescription(namedtuple('PsfDescription',
 class PSF(namedtuple('PSF', ['psf_description', 'angle', 'array'])):
   """Contains PSF and description"""
 
-  def __new__(cls, psf_description:PsfDescription, angle: float, array: np.ndarray):
+  def __new__(
+    cls,
+    psf_description: PsfDescription,
+    angle: float,
+    array: Union[np.ndarray, tf.Tensor]
+  ):
     assert isinstance(psf_description, PsfDescription)
-    assert array.ndim == 2
+    if isinstance(array, tf.Tensor):
+      assert array.shape.ndim == 2
+    else:
+      assert array.ndim == 2
     return super(PSF, cls).__new__(cls, psf_description, angle, array)
 
 
@@ -80,4 +91,3 @@ class USImage(namedtuple(
     assert isinstance(psf_description, PsfDescription)
 
     return super(USImage, cls).__new__(cls, image, angle, psf_description)
-
