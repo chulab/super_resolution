@@ -9,9 +9,6 @@ import tensorflow as tf
 # Add `super_resolution` package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from analysis import plot_utils
-
-from cloud_utils import save_utils
 from online_simulation import online_simulation_model
 from online_simulation import online_dataset_utils
 from online_simulation import online_simulation_utils
@@ -85,7 +82,6 @@ def train_and_evaluate(
   )
 
   tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
-
 
 
 def parse_args():
@@ -236,15 +232,15 @@ def main():
     )
 
   simulation_params.psf_descriptions = online_simulation_utils.grid_psf_descriptions(
-    angle_limit=args.angle_limit,
-    angle_count=args.angle_count,
-    min_frequency=args.min_frequency,
-    max_frequency=args.max_frequency,
-    frequency_count=args.frequency_count,
-    mode_count=args.mode_count,
-    numerical_aperture=simulation_params.numerical_aperture,
-    frequency_sigma=simulation_params.frequency_sigma,
-  )
+      angle_limit=args.angle_limit,
+      angle_count=args.angle_count,
+      min_frequency=args.min_frequency,
+      max_frequency=args.max_frequency,
+      frequency_count=args.frequency_count,
+      mode_count=args.mode_count,
+      numerical_aperture=simulation_params.numerical_aperture,
+      frequency_sigma=simulation_params.frequency_sigma,
+    )
 
   model_params.psf_descriptions = simulation_params.psf_descriptions
   model_params.grid_dimension = dataset_params.grid_dimension
