@@ -180,7 +180,12 @@ def parse_args():
   parser.add_argument(
     '--learning_rate',
     type=float,
-    default=.001,
+    default=None,
+  )
+  parser.add_argument(
+    '--objective',
+    type=str,
+    default=None,
   )
   parser.add_argument(
     '--train_steps',
@@ -210,7 +215,9 @@ def main():
   model_params = online_simulation_model.make_hparams()
   model_params.parse(args.model_params)
   if args.learning_rate is not None:
-      model_params.learning_rate = args.learning_rate
+    model_params.learning_rate = args.learning_rate
+  if args.objective is not None:
+    model_params.objective = args.objective
 
   train_params = make_train_params()
   train_params.parse(args.train_params)
@@ -239,18 +246,9 @@ def main():
     frequency_sigma=simulation_params.frequency_sigma,
   )
 
-  psfs = online_simulation_utils.make_psf(
-    psf_dimension=simulation_params.psf_dimension,
-    grid_dimension=dataset_params.grid_dimension,
-    descriptions=simulation_params.psf_descriptions,
-  )
-
-  # Save psfs.
-  psf_arrays = [p.array for p in psfs]
-  fig = plot_utils.plot_grid(psf_arrays, scale=dataset_params.grid_dimension,)
-  save_utils.maybe_save_cloud(fig, args.job_dir + "/psfs")
-
-  model_params.psfs = psfs
+  model_params.psf_descriptions = simulation_params.psf_descriptions
+  model_params.grid_dimension = dataset_params.grid_dimension
+  model_params.psf_dimension = simulation_params.psf_dimension
 
   if args.mode == _TRAIN:
     train_and_evaluate(
