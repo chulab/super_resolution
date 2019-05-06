@@ -33,6 +33,7 @@ def quantize_tensor(
   # The bins go from [low_value, high_value) so `0` -> `1` and
   # `1.` -> `quantiztion_count + 1`
   quantized = quantized - 1
+  quantized = tf.cast(quantized, tf.int32)
   return quantized, tf.one_hot(quantized, quantization_count)
 
 
@@ -52,7 +53,7 @@ def _logit_to_class(logit):
   Returns:
     Tensor of shape `batch_dimensions`.
   """
-  return tf.argmax(logit, -1)
+  return tf.cast(tf.argmax(logit, -1), tf.int32)
 
 
 def inverse_class_weight(
