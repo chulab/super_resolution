@@ -127,8 +127,9 @@ def signal_and_envelope(tensor_a, tensor_b, pulse_filter, mode):
   dft_size = [size * 2 - 1 for size in tensor_size_a]
   out_shape = [s1 + s2 - 1 for s1, s2 in zip(tensor_size_a, tensor_size_b)]
   fslice = tuple([slice(sz) for sz in out_shape])
-  tensor_a, tensor_b = tf_fft_conv.pad_to_size(tensor_a, dft_size), tf_fft_conv.pad_to_size(tensor_b,
-                                                                    dft_size)
+  tensor_a, tensor_b = (
+    tf_fft_conv.pad_to_size(tensor_a, dft_size),
+    tf_fft_conv.pad_to_size(tensor_b, dft_size))
   tensor_a, tensor_b = tf_fft_conv.convert_to_complex(tensor_a), tf_fft_conv.convert_to_complex(
     tensor_b)
 
@@ -187,4 +188,4 @@ class USSimulator():
 
     # Extract envelopes from `(envelope, signal)` tuple.
     envelopes = [o[0] for o in observations]
-    return tf.stack(envelopes, -1)[tf.newaxis]
+    return tf.stack(envelopes, -1)

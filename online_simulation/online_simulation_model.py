@@ -146,10 +146,9 @@ def network(input_layer, average_image, training):
   with tf.name_scope("model"):
     layers = {}
 
-    network = input_layer
     network = tf.concat([input_layer, average_image], -1)
     filters = network.shape.as_list()[-1]
-    network = entry_flow(network, filters=filters)
+    network = entry_flow(network)
 
     downsampled_average_image = _downsample_by_pool(average_image, 2 ** 4)
 
@@ -259,19 +258,18 @@ def model_fn(features, labels, mode, params):
 
     sim = online_simulation_utils.USSimulator(
       psfs=psfs,
-      image_grid_size=full_resolution_scatterer.shape.as_list(),
+      image_grid_size=full_resolution_scatterer.shape.as_list()[1:],
       grid_dimension=params.grid_dimension,
     )
 
-    raw = sim.observation_from_distribution(full_resolution_scatterer)
+    raw = sim.observation_from_distribution(
+      full_resolution_scatterer[0])[tf.newaxis]
     logging.info("observations {}".format(raw))
-    observations_normalized = preprocess.per_tensor_scale(raw, -1., 1.)
-    average_obs = tf.reduce_mean(raw, -1, keepdims=True)
 
     observations = {
       "raw": raw,
-      "average": average_obs,
-      "normalized": observations_normalized,
+      "average": tf.reduce_mean(raw, -1, keepdims=True),
+      "normalized": preprocess.per_tensor_scale(raw, -1., 1.),
       "descriptions": params.psf_descriptions,
     }
 
@@ -282,7 +280,7 @@ def model_fn(features, labels, mode, params):
         mode=p.psf_description.mode
       )
       tf.summary.image(title, observations['raw'][..., i, tf.newaxis], 1)
-    tf.summary.image("average_observation", average_obs, 1)
+    tf.summary.image("average_observation", observations['average'], 1)
 
   with tf.name_scope("features"):
     if mode == tf.estimator.ModeKeys.TRAIN:
@@ -290,7 +288,7 @@ def model_fn(features, labels, mode, params):
     else:
       training = False
 
-    features = network(observations, average_obs, training)
+    features = network(observations['raw'], observations['average'], training)
     logging.info("features {}".format(features))
 
     # Get discretized predictions.
@@ -314,13 +312,13 @@ def model_fn(features, labels, mode, params):
         """Convert `[B, H, W]` -> `[B, H, W, 1]`."""
         return tf.cast(category, tf.float32)[..., tf.newaxis]
 
-      target_image = _class_to_image(target['quantized'])
+      target_image = _class_to_image(target['class'])
       prediction_image = _class_to_image(predictions['class'])
       difference = tf.abs(target_image - prediction_image)
 
       dist_fr_summary = tf.summary.image(
         "full_resolution_scatterer",
-        scatterer_targets['full_resolution'][tf.newaxis, ..., tf.newaxis], 1)
+        scatterer_targets['full_resolution'][..., tf.newaxis], 1)
       dist_summary = tf.summary.image("target_image", target_image, 1)
       pred_summary = tf.summary.image("prediction_image", prediction_image, 1)
       diff_summary = tf.summary.image("difference", difference, 1)

@@ -18,6 +18,7 @@ def dataset_params():
     max_count=4,
     background_noise=0,
     db=10.,
+    batch_size=1,
   )
 
 
@@ -226,6 +227,8 @@ def random_circles_dataset(
   dataset = dataset.map(lambda tensor: _poisson_dataset_map(
     probability_distribution=tensor, lambda_multiplier=lambda_multiplier
   ), num_parallel_calls=-1)
+
+  dataset = dataset.batch(1)
 
   dataset = dataset.prefetch(1)
 
