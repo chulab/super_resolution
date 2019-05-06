@@ -74,7 +74,16 @@ class RecordWriter(object):
     self._examples_per_shard = examples_per_shard
 
   def check_not_nan(self, array):
+    """Checks array does not contain "Nan" values."""
     return not np.isnan(array).any()
+
+  def savev2(self, example):
+    """Saves encoded example to the current file"""
+    self._maybe_reinitialize()
+    self._writer.write(example.SerializeToString())
+    self._writer.flush()
+    logging.debug("Flushed writer {}.".format(self._writer))
+    self._current_example_in_shard += 1
 
   def save(self, distribution, observation):
     """Saves an example to the current file.
@@ -104,7 +113,7 @@ class RecordWriter(object):
       self._close_current_file_and_initialize()
     # If this is the first file.
     if self._current_shard == -1:
-      self._current_shard +=1
+      self._current_shard += 1
       self._initialize_file()
 
   def _close_current_file_and_initialize(self):
