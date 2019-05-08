@@ -67,38 +67,40 @@ def _conv_block(
     filters=64,
     kernel_size=[3, 3],
 ):
-  network = input_layer
-  network_res = tf.keras.layers.Activation('relu').apply(network)
-  network_res = tf.keras.layers.SeparableConv2D(
-    filters=filters,
-    depth_multiplier=1,
-    kernel_size=kernel_size,
-    padding="same",
-    use_bias=True,
-  ).apply(network)
-  network_res = tf.keras.layers.BatchNormalization().apply(network_res)
-  network = tf.keras.layers.Activation('relu')(network)
-  network_res = tf.keras.layers.SeparableConv2D(
-    filters=filters,
-    depth_multiplier=1,
-    kernel_size=kernel_size,
-    padding="same",
-    use_bias=True,
-    dilation_rate=2,
-  ).apply(network_res)
-  network_res = tf.keras.layers.BatchNormalization().apply(network_res)
-  network = tf.keras.layers.Activation('relu')(network)
-  network_res = tf.keras.layers.SeparableConv2D(
-    filters=filters,
-    depth_multiplier=1,
-    kernel_size=kernel_size,
-    padding="same",
-    use_bias=True,
-    dilation_rate=4,
-  ).apply(network_res)
-  network_res = tf.keras.layers.BatchNormalization().apply(network_res)
-  network = tf.keras.layers.add([network, network_res])
-  return network
+  with tf.name_scope("conv_block"):
+    network = input_layer
+    residual = network
+    network = tf.keras.layers.Activation('relu').apply(network)
+    network = tf.keras.layers.SeparableConv2D(
+      filters=filters,
+      depth_multiplier=1,
+      kernel_size=kernel_size,
+      padding="same",
+      use_bias=True,
+    ).apply(network)
+    network = tf.keras.layers.BatchNormalization().apply(network)
+    network = tf.keras.layers.Activation('relu')(network)
+    network = tf.keras.layers.SeparableConv2D(
+      filters=filters,
+      depth_multiplier=1,
+      kernel_size=kernel_size,
+      padding="same",
+      use_bias=True,
+      dilation_rate=2,
+    ).apply(network)
+    network = tf.keras.layers.BatchNormalization().apply(network)
+    network = tf.keras.layers.Activation('relu')(network)
+    network = tf.keras.layers.SeparableConv2D(
+      filters=filters,
+      depth_multiplier=1,
+      kernel_size=kernel_size,
+      padding="same",
+      use_bias=True,
+      dilation_rate=4,
+    ).apply(network)
+    network = tf.keras.layers.BatchNormalization().apply(network)
+    network = tf.keras.layers.add([network, residual])
+    return network
 
 
 def _downsample_block(
@@ -106,15 +108,16 @@ def _downsample_block(
     depthwise_kernel_size=[3, 3],
     depth_multiplier=1,
 ):
-  network = tf.keras.layers.DepthwiseConv2D(
-    depth_multiplier=depth_multiplier,
-    kernel_size=depthwise_kernel_size,
-    dilation_rate=1,
-    padding="same",
-    strides=2,
-  ).apply(input_layer)
-  network = tf.keras.layers.BatchNormalization().apply(network)
-  return network
+  with tf.name_scope("downsample_block"):
+    network = tf.keras.layers.DepthwiseConv2D(
+      depth_multiplier=depth_multiplier,
+      kernel_size=depthwise_kernel_size,
+      dilation_rate=1,
+      padding="same",
+      strides=2,
+    ).apply(input_layer)
+    network = tf.keras.layers.BatchNormalization().apply(network)
+    return network
 
 
 def _upsample_block(
@@ -233,16 +236,12 @@ def model_fn(features, labels, mode, params):
     full_resolution_scatterer = features['scatterer_distribution']
     scatterer_targets = process_target(
       full_resolution_scatterer, DOWNSAMPLE, params.bit_depth)
-    scatterer_hook = tf.train.LoggingTensorHook(
-      tensors=scatterer_targets, every_n_iter=params.log_steps)
-    train_hooks.append(scatterer_hook)
+    logging.info("scatterer_targets {}".format(scatterer_targets))
 
     full_resolution_probability = features['probability_distribution']
     probability_targets = process_target(
       full_resolution_probability, DOWNSAMPLE, params.bit_depth)
-    hook = tf.train.LoggingTensorHook(
-      tensors=probability_targets, every_n_iter=params.log_steps)
-    train_hooks.append(hook)
+    logging.info("probability_targets {}".format(probability_targets))
 
     if params.objective == _PROBABILITY:
       target = probability_targets
@@ -255,6 +254,8 @@ def model_fn(features, labels, mode, params):
       grid_dimension=params.grid_dimension,
       descriptions=params.psf_descriptions,
     )
+    logging.info("psfs count {}".format(len(psfs)))
+    logging.info("psfs {}".format(psfs))
 
     sim = online_simulation_utils.USSimulator(
       psfs=psfs,
@@ -265,6 +266,8 @@ def model_fn(features, labels, mode, params):
     raw = sim.observation_from_distribution(
       full_resolution_scatterer[0])[tf.newaxis]
     logging.info("observations {}".format(raw))
+
+    logging.info("Observation variables {}".format(tf.all_variables()))
 
     observations = {
       "raw": raw,
@@ -306,6 +309,8 @@ def model_fn(features, labels, mode, params):
       "logits": predictions_quantized,
       "class": prediction_class,
     }
+    logging.info("predictions {}".format(predictions))
+    logging.info("After features variables {}".format(tf.all_variables()))
 
     with tf.name_scope("images"):
       def _class_to_image(category):
