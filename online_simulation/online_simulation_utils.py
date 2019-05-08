@@ -103,89 +103,85 @@ def make_psf(
   return psfs
 
 
-def signal_and_envelope(tensor_a, tensor_b, pulse_filter, mode):
-  """Calculates analytic signal of convolving `tensor_a` and `tensor_b`.
-
-  Size of `tensor_b` must be less than or equal to `tensor_a`.
-
-  This function is used to calculate the envelope containing speckle resulting
-  from convolving a scatterer distribution (`tensor_a`) with a psf (`tensor_b`).
-
-  args:
-    tensor_a: `tf.Tensor` of shape `[H, W]`
-    tensor_b: `tf.Tensor` of shape `[H2, W2]`
-    mode: See documentation for `fft_conv`.
-    sampling_rate: Sampling rate in Hz of `tensor_a`.
-    frequency: Center frequency to filter.
-    angle: Incident angle of impulse in radians.
-    frequency_sigma: Approximate sigma in frequency of pulse.
-
-  Returns: `tf.Tensor`
-  """
-  tensor_size_a = tensor_a.shape.as_list()
-  tensor_size_b = tensor_b.shape.as_list()
-  dft_size = [size * 2 - 1 for size in tensor_size_a]
-  out_shape = [s1 + s2 - 1 for s1, s2 in zip(tensor_size_a, tensor_size_b)]
-  fslice = tuple([slice(sz) for sz in out_shape])
-  tensor_a, tensor_b = (
-    tf_fft_conv.pad_to_size(tensor_a, dft_size),
-    tf_fft_conv.pad_to_size(tensor_b, dft_size))
-  tensor_a, tensor_b = tf_fft_conv.convert_to_complex(tensor_a), tf_fft_conv.convert_to_complex(
-    tensor_b)
-
-  ft_tensor = tf.fft2d(tensor_a) * tf.fft2d(tensor_b)
-  fftshift_tensor = tf_fft_conv.fftshift(ft_tensor)
-  pulse_filter = tf_fft_conv.convert_to_complex(pulse_filter)
-  filtered_tensor = fftshift_tensor * pulse_filter
-
-  filtered_tensor = tf_fft_conv.ifftshift(filtered_tensor)
-  envelope_tensor_out = tf.abs(tf.ifft2d(filtered_tensor))[fslice]
-  signal_tensor_out = tf.real(tf.ifft2d(ft_tensor))[fslice]
-
-  if mode == 'full':
-    return envelope_tensor_out, signal_tensor_out
-  if mode == 'same':
-    return (tf_fft_conv._centered(envelope_tensor_out, tensor_size_a),
-            tf_fft_conv._centered(signal_tensor_out, tensor_size_a))
-
-
 class USSimulator():
 
   def __init__(self, psfs, image_grid_size, grid_dimension):
     self.psfs = psfs
+    self.image_grid_size = image_grid_size
     self.dft_size = self._dft_size(image_grid_size)
-    self.sampling_rate_time = (grid_dimension / defs._SPEED_OF_SOUND_TISSUE) ** -1
+    self.sampling_rate_time = (
+      (grid_dimension / defs._SPEED_OF_SOUND_TISSUE) ** -1)
 
     self.grid = self._ft_grid(self.sampling_rate_time, self.dft_size)
 
   def _dft_size(self, image_grid_size):
     return [s * 2 - 1 for s in image_grid_size]
 
+  def _fslice(self, image_grid_size, psf_grid_size):
+    out_shape = [s1 + s2 - 1 for s1, s2 in zip(image_grid_size, psf_grid_size)]
+    return tuple([slice(sz) for sz in out_shape])
+
   def _ft_grid(self, sampling_rate, dft_size):
-    ft_grid_unit = sampling_rate / dft_size[0]
-    length_ft = [(s - 1) * ft_grid_unit for s in dft_size]
-    grid = response_functions.coordinate_grid(
-      length_ft, [ft_grid_unit] * len(length_ft), center=True, mode="NUMPY")
-    return tf.Variable(np.stack([g.astype(np.float32) for g in grid], -1), trainable=False)
+    with tf.name_scope("ft_grid"):
+      ft_grid_unit = sampling_rate / dft_size[0]
+      length_ft = [(s - 1) * ft_grid_unit for s in dft_size]
+      grid = response_functions.coordinate_grid(
+        length_ft, [ft_grid_unit] * len(length_ft), center=True, mode="NUMPY")
+      return tf.Variable(np.stack([g.astype(np.float32) for g in grid], -1),
+                         trainable=False)
 
   def _filter(self, grid, frequency, angle, frequency_sigma):
-    return tf_fft_conv.centered_filter(
-        grid, frequency * 2, angle, frequency_sigma * 4) * 2
+    with tf.name_scope("filter"):
+      return tf_fft_conv.centered_filter(
+          grid, frequency * 2, angle, frequency_sigma * 4) * 2
+
+  def ft_tensor(self, tensor, dft_size):
+    with tf.name_scope("ft_tensor"):
+      tensor = tf_fft_conv.pad_to_size(tensor, dft_size)
+      tensor = tf_fft_conv.convert_to_complex(tensor)
+      return tf.fft2d(tensor)
+
+  def signal_and_envelope(self, ft_distribution, ft_psf, filter, fslice, mode):
+    """Compute RF signal and envelope for simulation.
+
+    This function computes the signal in the frequency domain by multiplying
+    `ft_distribution` and `ft_psf` and `filter`.
+    """
+    with tf.name_scope("signal_and_envelope"):
+      tensor = ft_distribution * ft_psf
+      filter = tf_fft_conv.ifftshift(filter)
+      filter = tf_fft_conv.convert_to_complex(filter)
+      tensor = tensor * filter
+      tensor = tf.ifft2d(tensor)[fslice]
+      envelope_tensor_out = tf.abs(tensor)
+      signal_tensor_out = tf.real(tensor)
+
+      if mode == 'full':
+        return envelope_tensor_out, signal_tensor_out
+      if mode == 'same':
+        return (
+          tf_fft_conv._centered(envelope_tensor_out, self.image_grid_size),
+          tf_fft_conv._centered(signal_tensor_out, self.image_grid_size))
 
   def observation_from_distribution(self, distribution):
-    observations = [
-      signal_and_envelope(
-        distribution,
-        psf.array,
-        pulse_filter=self._filter(
-            self.grid,
-            psf.psf_description.frequency,
-            psf.angle,
-            psf.psf_description.frequency_sigma * 2
-        ),
-        mode="same"
-      ) for psf in self.psfs]
+    with tf.name_scope("simulation"):
+      ft_distribution = self.ft_tensor(distribution, self.dft_size)
+      observations = [
+        self.signal_and_envelope(
+          ft_distribution=ft_distribution,
+          ft_psf=self.ft_tensor(psf.array, self.dft_size),
+          filter=self._filter(
+              self.grid,
+              psf.psf_description.frequency,
+              psf.angle,
+              psf.psf_description.frequency_sigma * 2
+          ),
+          fslice=self._fslice(
+            distribution.shape.as_list(), psf.array.shape.as_list()),
+          mode="same"
+        ) for psf in self.psfs]
 
-    # Extract envelopes from `(envelope, signal)` tuple.
-    envelopes = [o[0] for o in observations]
-    return tf.stack(envelopes, -1)
+      with tf.name_scope("extract_envelopes"):
+        # Extract envelopes from `(envelope, signal)` tuple.
+        envelopes = [o[0] for o in observations]
+        return tf.stack(envelopes, -1)
