@@ -233,12 +233,12 @@ def model_fn(features, labels, mode, params):
   with tf.name_scope("distributions"):
     DOWNSAMPLE = 2 ** 4
 
-    full_resolution_scatterer = features['scatterer_distribution']
+    full_resolution_scatterer = features['scatterer_distribution'][tf.newaxis]
     scatterer_targets = process_target(
       full_resolution_scatterer, DOWNSAMPLE, params.bit_depth)
     logging.info("scatterer_targets {}".format(scatterer_targets))
 
-    full_resolution_probability = features['probability_distribution']
+    full_resolution_probability = features['probability_distribution'][tf.newaxis]
     probability_targets = process_target(
       full_resolution_probability, DOWNSAMPLE, params.bit_depth)
     logging.info("probability_targets {}".format(probability_targets))

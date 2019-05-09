@@ -58,7 +58,7 @@ log_step_count=10,\
 " \
     --train_steps 100 \
     --learning_rate .0005 \
-    --angle_count 10 \
+    --angle_count 15 \
     --angle_limit 90 \
     --frequency_count 8
 

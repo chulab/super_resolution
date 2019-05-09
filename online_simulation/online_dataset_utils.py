@@ -228,8 +228,6 @@ def random_circles_dataset(
     probability_distribution=tensor, lambda_multiplier=lambda_multiplier
   ), num_parallel_calls=-1)
 
-  dataset = dataset.batch(1)
-
   dataset = dataset.prefetch(1)
 
   return dataset
