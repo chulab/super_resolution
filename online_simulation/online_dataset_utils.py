@@ -17,8 +17,8 @@ def dataset_params():
     max_radius=1.5e-3,
     max_count=4,
     background_noise=0,
+    scatterer_density=1.e9,
     db=10.,
-    batch_size=1,
   )
 
 
