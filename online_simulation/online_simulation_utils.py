@@ -30,6 +30,14 @@ def grid_psf_descriptions(
     numerical_aperture,
     frequency_sigma,
 ):
+  """Generates set of `PsfDescription`.
+
+  This function generates a set of `PsfDescription` which consists of all
+    combinations:
+    - `angle_count` angles between 0. and `angle_limit` degrees.
+    - `frequency_count` frequencies between `min_frequency` and `max_frequency`.
+    - `mode_count` modes starting at 0th order mode (0, ... , `mode_count`).
+  """
   angles = np.linspace(0., angle_limit, angle_count)
   frequencies = np.linspace(min_frequency, max_frequency, frequency_count)
   modes = list(range(mode_count))
@@ -138,6 +146,7 @@ class USSimulator():
 
   def _filter(self, grid, frequency, angle, frequency_sigma):
     with tf.name_scope("filter"):
+      angle = angle * np.pi / 180.
       return tf_fft_conv.centered_filter(
           grid, frequency * 2, angle, frequency_sigma * 4) * 2
 
