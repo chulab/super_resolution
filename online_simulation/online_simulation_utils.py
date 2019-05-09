@@ -164,7 +164,7 @@ class USSimulator():
     """
     with tf.name_scope("signal_and_envelope"):
       tensor = ft_distribution * ft_psf
-      filter = tf_fft_conv.ifftshift(filter)
+      filter = tf_fft_conv.ifftshift_split(filter)
       filter = tf_fft_conv.convert_to_complex(filter)
       tensor = tensor * filter
       tensor = tf.ifft2d(tensor)[fslice]

@@ -95,6 +95,17 @@ def fftshift(x, axes=None, name=None):
     return manip_ops.roll(x, shift, axes)
 
 
+def fftshift_split(x):
+  """Perform fftshift on all axes using `tf.split`."""
+  axes = tuple(range(x.shape.ndims))
+  shift = [int(dim // 2) for dim in x.shape]
+  splits = [(int(dim - s), s) for s, dim in zip(shift, x.shape)]
+  for a, s in zip(axes, splits):
+    s1, s2 = tf.split(x, s, axis=a)
+    x = tf.concat([s2, s1], axis=a)
+  return x
+
+
 def ifftshift(x, axes=None, name=None):
   """The inverse of fftshift.
    Although identical for even-length x,
@@ -128,6 +139,16 @@ def ifftshift(x, axes=None, name=None):
 
     return manip_ops.roll(x, shift, axes)
 
+
+def ifftshift_split(x):
+  """Perform fftshift on all axes using `tf.split`."""
+  axes = tuple(range(x.shape.ndims))
+  shift = [int(dim // 2) for dim in x.shape]
+  splits = [(s, int(dim - s)) for s, dim in zip(shift, x.shape)]
+  for a, s in zip(axes, splits):
+    s1, s2 = tf.split(x, s, axis=a)
+    x = tf.concat([s2, s1], axis=a)
+  return x
 
 def signal_and_envelope(tensor_a, tensor_b, mode, sampling_rate, frequency, angle, freq_sigma):
   """Calculates analytic signal of convolving `tensor_a` and `tensor_b`.
