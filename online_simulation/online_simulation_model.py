@@ -276,14 +276,16 @@ def model_fn(features, labels, mode, params):
       "descriptions": params.psf_descriptions,
     }
 
-    for i, p in enumerate(psfs):
-      title = "obs_{frequency}_{angle}_{mode}".format(
-        frequency=p.psf_description.frequency,
-        angle=p.angle,
-        mode=p.psf_description.mode
-      )
-      tf.summary.image(title, observations['raw'][..., i, tf.newaxis], 1)
-    tf.summary.image("average_observation", observations['average'], 1)
+    with tf.name_scope("image_summary"):
+      split_observations = tf.split(observations['raw'], len(psfs), axis=-1)
+      for obs, p in zip(split_observations, psfs):
+        title = "obs_{frequency}_{angle}_{mode}".format(
+          frequency=p.psf_description.frequency,
+          angle=p.angle,
+          mode=p.psf_description.mode
+        )
+        tf.summary.image(title, obs, 1)
+      tf.summary.image("average_observation", observations['average'], 1)
 
   with tf.name_scope("features"):
     if mode == tf.estimator.ModeKeys.TRAIN:

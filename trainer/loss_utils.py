@@ -69,12 +69,13 @@ def inverse_class_weight(
   Returns:
     `tf.Tensor` of same shape as `logits` containing weights.
   """
-  real_proportion = (tf.reduce_sum(
-    logits,
-    axis=[0, 1, 2],
-    keepdims=True,
-  ) + epsilon) / (tf.cast(tf.size(logits), tf.float32) + epsilon)
-  return tf.reduce_sum((1 / real_proportion) * logits, axis=-1)
+  with tf.name_scope("inverse_propotional_weight"):
+    real_proportion = (tf.reduce_sum(
+      logits,
+      axis=[0, 1, 2],
+      keepdims=True,
+    ) + epsilon) / (tf.cast(tf.size(logits), tf.float32) + epsilon)
+    return tf.reduce_sum((1 / real_proportion) * logits, axis=-1)
 
 
 def downsample_target(target, downsample):

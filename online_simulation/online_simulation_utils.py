@@ -74,33 +74,39 @@ def make_psf(
     grid_dimension: float,
     descriptions,
 ):
-  psfs = []
+  with tf.name_scope("psf"):
+    psfs = []
+    for a, d in descriptions:
+      lengths = [psf_dimension, 0, psf_dimension]
 
-  for a, d in descriptions:
-    lengths = [psf_dimension, 0, psf_dimension]
+      coordinates = _coordinates(lengths, grid_dimension, a)
 
-    coordinates = _coordinates(lengths, grid_dimension, a)
+      psf_temp = response_functions.gaussian_impulse_response_v2(
+        coordinates=coordinates,
+        frequency=d.frequency,
+        mode=d.mode,
+        numerical_aperture=d.numerical_aperture,
+        frequency_sigma=d.frequency_sigma,
+      )[:, 0, :]
+      psf_temp = psf_temp.astype(np.float32)
+      # Swap `x` and `z` axes.
+      psf_temp = np.transpose(psf_temp, [1, 0])
 
-    psf_temp = response_functions.gaussian_impulse_response_v2(
-      coordinates=coordinates,
-      frequency=d.frequency,
-      mode=d.mode,
-      numerical_aperture=d.numerical_aperture,
-      frequency_sigma=d.frequency_sigma,
-    )[:, 0, :]
-
-    # Swap `x` and `z` axes.
-    psf_temp = np.transpose(psf_temp, [1, 0])
-
-    psf = defs.PSF(
-      psf_description=d,
-      angle=a,
-      array=tf.Variable(psf_temp, dtype=np.float32, trainable=False)
-    )
-
-    psfs.append(psf)
-
-  return psfs
+      psf = defs.PSF(
+        psf_description=d,
+        angle=a,
+        array=tf.get_variable(
+          name="frequency_{frequency}_angle_{angle}_mode_{mode}".format(
+            frequency=d.frequency,
+            angle=a,
+            mode=d.mode,
+          ),
+          initializer=psf_temp,
+          dtype=tf.float32,
+          trainable=False)
+      )
+      psfs.append(psf)
+    return psfs
 
 
 class USSimulator():

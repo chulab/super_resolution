@@ -54,11 +54,11 @@ decay_step=1000\
     --train_params \
 "eval_steps=200,\
 profile_steps=1000000,\
-log_step_count=10,\
+log_step_count=20,\
 " \
-    --train_steps 100 \
+    --train_steps 2000 \
     --learning_rate .0005 \
-    --angle_count 15 \
+    --angle_count 10 \
     --angle_limit 90 \
     --frequency_count 8
 
