@@ -18,6 +18,7 @@ def dataset_params():
     max_count=4,
     background_noise=0,
     db=10.,
+    batch_size=1,
   )
 
 

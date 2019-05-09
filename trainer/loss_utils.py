@@ -11,7 +11,6 @@ def quantize_tensor(
     quantization_count: int,
     min_val: float,
     max_val: float,
-    separate_channels: bool=True,
 ):
   """Quantizes image.
 
@@ -23,7 +22,8 @@ def quantize_tensor(
     different classes.
 
   Returns:
-    segmented_image: tf.Tensor of shape `[batch, height, width, quantizations]`
+    class: tf.Tensor of shape `[batch, height, width]`
+    logits: tf.Tensor of shape `[batch, height, width, quantizations]`
   """
   clipped = tf.clip_by_value(tensor, min_val, max_val)
   quantizations = list(np.linspace(min_val, max_val, quantization_count + 1))[:-1]
@@ -33,10 +33,27 @@ def quantize_tensor(
   # The bins go from [low_value, high_value) so `0` -> `1` and
   # `1.` -> `quantiztion_count + 1`
   quantized = quantized - 1
-  if not separate_channels:
-    return quantized
-  else:
-    return tf.one_hot(quantized, quantization_count)
+  quantized = tf.cast(quantized, tf.int32)
+  return quantized, tf.one_hot(quantized, quantization_count)
+
+
+def _logit_to_class(logit):
+  """Class prediction from 1-hot logit.
+
+  This is used to generate the numerical class labels from a one-hot encoded
+  logit. For example:
+
+  # logits = [0, 0, 1], [0, 1, 0]]
+  output = _logit_to_class(logits)
+  # output = [2, 1]
+
+  Args:
+    Tensor of shape `batch_dimensions + [class_count]`
+
+  Returns:
+    Tensor of shape `batch_dimensions`.
+  """
+  return tf.cast(tf.argmax(logit, -1), tf.int32)
 
 
 def inverse_class_weight(
@@ -52,9 +69,17 @@ def inverse_class_weight(
   Returns:
     `tf.Tensor` of same shape as `logits` containing weights.
   """
-  real_proportion = (tf.reduce_sum(
-    logits,
-    axis=[0, 1, 2],
-    keepdims=True,
-  ) + epsilon) / (tf.cast(tf.size(logits), tf.float32) + epsilon)
-  return tf.reduce_sum((1 / real_proportion) * logits, axis=-1)
+  with tf.name_scope("inverse_propotional_weight"):
+    real_proportion = (tf.reduce_sum(
+      logits,
+      axis=[0, 1, 2],
+      keepdims=True,
+    ) + epsilon) / (tf.cast(tf.size(logits), tf.float32) + epsilon)
+    return tf.reduce_sum((1 / real_proportion) * logits, axis=-1)
+
+
+def downsample_target(target, downsample):
+  """Downsample tensor of shape `[batch, height, width]`."""
+  target = target[..., tf.newaxis]
+  target = tf.keras.layers.AveragePooling2D(downsample, padding='same')(target)
+  return target[..., 0]

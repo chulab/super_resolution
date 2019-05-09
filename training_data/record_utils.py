@@ -6,6 +6,7 @@ from simulation import defs
 
 from typing import List
 
+
 def _bytes_feature(value):
   """Returns a bytes_list from a string / byte."""
   return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))

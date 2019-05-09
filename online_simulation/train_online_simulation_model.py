@@ -9,9 +9,6 @@ import tensorflow as tf
 # Add `super_resolution` package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from analysis import plot_utils
-
-from cloud_utils import save_utils
 from online_simulation import online_simulation_model
 from online_simulation import online_dataset_utils
 from online_simulation import online_simulation_utils
@@ -85,7 +82,6 @@ def train_and_evaluate(
   )
 
   tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
-
 
 
 def parse_args():
@@ -180,7 +176,12 @@ def parse_args():
   parser.add_argument(
     '--learning_rate',
     type=float,
-    default=.001,
+    default=None,
+  )
+  parser.add_argument(
+    '--objective',
+    type=str,
+    default=None,
   )
   parser.add_argument(
     '--train_steps',
@@ -210,7 +211,9 @@ def main():
   model_params = online_simulation_model.make_hparams()
   model_params.parse(args.model_params)
   if args.learning_rate is not None:
-      model_params.learning_rate = args.learning_rate
+    model_params.learning_rate = args.learning_rate
+  if args.objective is not None:
+    model_params.objective = args.objective
 
   train_params = make_train_params()
   train_params.parse(args.train_params)
@@ -229,28 +232,19 @@ def main():
     )
 
   simulation_params.psf_descriptions = online_simulation_utils.grid_psf_descriptions(
-    angle_limit=args.angle_limit,
-    angle_count=args.angle_count,
-    min_frequency=args.min_frequency,
-    max_frequency=args.max_frequency,
-    frequency_count=args.frequency_count,
-    mode_count=args.mode_count,
-    numerical_aperture=simulation_params.numerical_aperture,
-    frequency_sigma=simulation_params.frequency_sigma,
-  )
+      angle_limit=args.angle_limit,
+      angle_count=args.angle_count,
+      min_frequency=args.min_frequency,
+      max_frequency=args.max_frequency,
+      frequency_count=args.frequency_count,
+      mode_count=args.mode_count,
+      numerical_aperture=simulation_params.numerical_aperture,
+      frequency_sigma=simulation_params.frequency_sigma,
+    )
 
-  psfs = online_simulation_utils.make_psf(
-    psf_dimension=simulation_params.psf_dimension,
-    grid_dimension=dataset_params.grid_dimension,
-    descriptions=simulation_params.psf_descriptions,
-  )
-
-  # Save psfs.
-  psf_arrays = [p.array for p in psfs]
-  fig = plot_utils.plot_grid(psf_arrays, scale=dataset_params.grid_dimension,)
-  save_utils.maybe_save_cloud(fig, args.job_dir + "/psfs")
-
-  model_params.psfs = psfs
+  model_params.psf_descriptions = simulation_params.psf_descriptions
+  model_params.grid_dimension = dataset_params.grid_dimension
+  model_params.psf_dimension = simulation_params.psf_dimension
 
   if args.mode == _TRAIN:
     train_and_evaluate(

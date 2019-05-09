@@ -84,15 +84,15 @@ def fftshift(x, axes=None, name=None):
   """
   with tf.name_scope(name, "fftshift") as name:
     x = tf.convert_to_tensor(x)
-  if axes is None:
-    axes = tuple(range(x.shape.ndims))
-    shift = [int(dim // 2) for dim in x.shape]
-  elif isinstance(axes, int):
-    shift = int(x.shape[axes] // 2)
-  else:
-    shift = [int((x.shape[ax]) // 2) for ax in axes]
+    if axes is None:
+      axes = tuple(range(x.shape.ndims))
+      shift = [int(dim // 2) for dim in x.shape]
+    elif isinstance(axes, int):
+      shift = int(x.shape[axes] // 2)
+    else:
+      shift = [int((x.shape[ax]) // 2) for ax in axes]
 
-  return manip_ops.roll(x, shift, axes)
+    return manip_ops.roll(x, shift, axes)
 
 
 def ifftshift(x, axes=None, name=None):
