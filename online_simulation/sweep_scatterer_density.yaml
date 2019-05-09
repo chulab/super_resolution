@@ -11,12 +11,17 @@ trainingInput:
       - parameterName: scatterer_density
         type: DISCRETE
         discreteValues:
-          - 1e9
-          - 5e9
-          - 10e9
-          - 50e9
-          - 100e9
-    maxTrials: !!int 5
+          - 1.e9
+          - 5.e9
+          - 10.e9
+          - 50.e9
+          - 100.e9
+      - parameterName: objective
+        type: CATEGORICAL
+        categoricalValues:
+          - PROBABILITY
+          - SCATTERER
+    maxTrials: !!int 10
     maxParallelTrials: !!int 5
     hyperparameterMetricTag: accuracy_weight
     enableTrialEarlyStopping: FALSE

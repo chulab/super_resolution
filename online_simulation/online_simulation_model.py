@@ -163,7 +163,7 @@ def network(input_layer, average_image, training):
     for i in range(3):
       network = _conv_block(network, filters=filters, kernel_size=5)
 
-    print("size after network {}".format(network))
+    logging.info("size after network {}".format(network))
 
     network = tf.concat([network, downsampled_average_image], -1)
 
@@ -238,7 +238,8 @@ def model_fn(features, labels, mode, params):
       full_resolution_scatterer, DOWNSAMPLE, params.bit_depth)
     logging.info("scatterer_targets {}".format(scatterer_targets))
 
-    full_resolution_probability = features['probability_distribution'][tf.newaxis]
+    full_resolution_probability = (
+      features['probability_distribution'][tf.newaxis])
     probability_targets = process_target(
       full_resolution_probability, DOWNSAMPLE, params.bit_depth)
     logging.info("probability_targets {}".format(probability_targets))
