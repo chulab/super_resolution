@@ -45,7 +45,6 @@ def make_and_save_dataset(
   """Generate and save dataset of scatterer distributions/probabilities."""
   iterator = create_iterator(dataset_params)
 
-
   writer = record_writer.RecordWriter(
     directory=output_directory,
     dataset_name=dataset_name,
@@ -58,7 +57,8 @@ def make_and_save_dataset(
       probability_distribution=next['probability_distribution'].numpy(),
       scatterer_distribution=next['scatterer_distribution'].numpy(),
     )
-    print("save example")
+    if i % 10 == 0:
+      print("saved {} examples.".format(i))
     writer.savev2(example)
 
   writer.close()
