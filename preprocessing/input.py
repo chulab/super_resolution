@@ -81,8 +81,9 @@ def input_fn(
     for parse_fn, parallel_calls in zip(parse_fns, parallel_calls):
       dataset = dataset.map(parse_fn, num_parallel_calls=parallel_calls)
 
-    # Batch.
-    dataset = dataset.batch(batch_size=batch_size)
+    if batch_size > 0:
+      # Batch.
+      dataset = dataset.batch(batch_size=batch_size)
 
     dataset = dataset.prefetch(prefetch)
     return dataset
