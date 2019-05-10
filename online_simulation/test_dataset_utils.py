@@ -2,14 +2,13 @@
 
 import tensorflow as tf
 import numpy as np
-from parameterized import parameterized
 
 import sys
 import os
 # Add `super_resolution` package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from online_simulation import dataset
+from online_simulation import dataset_utils
 
 
 class DatasetTest(tf.test.TestCase):
@@ -18,10 +17,13 @@ class DatasetTest(tf.test.TestCase):
     shape = (15, 17)
     test_prob = np.random.rand(*shape).astype(np.float32)
     test_dist = np.random.rand(*shape).astype(np.float32)
-    example = dataset.convert_to_example(test_prob, test_dist)
+    example = dataset_utils.convert_to_example(test_prob, test_dist)
     example_str = example.SerializeToString()
 
-    parsed_p, parsed_d = dataset._parse_example(example_str)
+    example = dataset_utils._parse_example(example_str)
+
+    parsed_p = example['probability_distribution']
+    parsed_d = example['scatterer_distribution']
 
     self.assertEqual(test_prob.shape, tuple(parsed_p.shape.as_list()))
     self.assertEqual(test_dist.shape, tuple(parsed_d.shape.as_list()))
@@ -32,18 +34,6 @@ class DatasetTest(tf.test.TestCase):
     self.assertAllClose(test_dist, parsed_d_)
     self.assertEqual(test_prob.shape, parsed_p_.shape)
     self.assertEqual(test_dist.shape, test_dist.shape)
-
-
-    # @parameterized.expand([
-    #   (1,),
-    #   (2,),
-    #   (4,),
-    # ])
-    # def testExampleAndParse(self, ndims):
-    #
-    #
-    #   with self.assertRaisesRegex(ValueError, "`array` must have shape"):
-    #     dataset_utils.array_input_fn(np.ones([5] * ndims), "EVAL", 1)
 
 
 
