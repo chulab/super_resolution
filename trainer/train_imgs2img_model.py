@@ -7,6 +7,10 @@ import sys
 
 import trainer.imgs2img_transformer as imgs2img
 import tensorflow as tf
+import numpy as np
+from analysis import plot_utils, recorder_utils, summaries
+from cloud_utils import save_utils
+from oauth2client.client import GoogleCredentials
 
 # Add `super_resolution` package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -57,6 +61,46 @@ def parse_args():
     default=''
   )
 
+  parser.add_argument(
+    '--train_steps',
+    type=int,
+    required=True
+  )
+
+  parser.add_argument(
+    '--service_account_path',
+    type=str,
+    help='path to service account credentials for Google utilities',
+    default='gs://chu_super_resolution_data/service-account.json'
+  )
+
+  parser.add_argument(
+    '--slide_id',
+    type=str,
+    help='Google slide id for summary',
+    default='187e6QMPZApaDQoqC5v_BqQ4Y0mZUsUD1VkviSu_hCnY'
+  )
+
+  parser.add_argument(
+    '--frequency_indices',
+    type=lambda s: [int(index) for index in s.split(',')],
+    required=True,
+    default='0'
+  )
+
+  parser.add_argument(
+    '--angle_indices',
+    type=lambda s: [int(index) for index in s.split(',')],
+    required=True,
+    default='0'
+  )
+
+  parser.add_argument(
+    '--example_shape',
+    type=lambda s: [int(size) for size in s.split(',')],
+    required=True,
+  )
+
   parser.add_argument('--cloud_train', action='store_true')
   parser.set_defaults(cloud_train=False)
 
@@ -81,8 +125,14 @@ def main():
   hparams.parse(args.hparams)
   p_hparams = imgs2img.super_reso_problem_hparams(256, 2 ** hparams.bit_depth, hparams)
   hparams.add_hparam("problem", p_hparams)
+  hparams.add_hparam("job_dir", args.job_dir)
+  hparams.add_hparam("frequency_indices", args.frequency_indices)
+  hparams.add_hparam("angle_indices", args.angle_indices)
+
+
   # Must manually replace `observation_spec`.
   hparams.observation_spec=observation_spec
+  hparams.example_shape=args.example_shape[0]
 
   logging.info("HParams {}".format(hparams))
 
@@ -103,6 +153,16 @@ def main():
       eval_parse_fns=parse_fns,
       warm_start_from=warm_start_from,
     )
+
+    tb_dir = args.job_dir + "/eval"
+    if args.cloud_train:
+      save_dir = args.job_dir
+    else:
+      save_dir = "gs://chu_super_resolution_experiment/test_output"
+
+    steps, _ = plot_utils.get_all_tensor_from_tensorboard(tb_dir, 'predictions/distribution_tensor')
+    steps = sorted(list(dict.fromkeys(steps)))
+    summaries.summarize_template_1(args, observation_spec, hparams, steps, tb_dir, save_dir)
 
   if args.mode==_PREDICT:
     pass

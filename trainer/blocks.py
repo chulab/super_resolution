@@ -23,6 +23,23 @@ def residual_block(inputs, channels, kernel_size, residual_scale):
     res = tf.keras.layers.Lambda(lambda x: x * residual_scale).apply(res)
     return tf.keras.layers.Add().apply([inputs, res])
 
+def depthwise_residual_block(inputs, kernel_size, residual_scale):
+  with tf.name_scope("residual_block"):
+    res = tf.keras.layers.DepthwiseConv2D(
+      kernel_size,
+      activation=None,
+      use_bias=False,
+      padding="same"
+    ).apply(inputs)
+    res = tf.keras.layers.ReLU().apply(res)
+    res = tf.keras.layers.DepthwiseConv2D(
+      kernel_size,
+      activation=None,
+      use_bias=False,
+      padding="same"
+    ).apply(res)
+    res = tf.keras.layers.Lambda(lambda x: x * residual_scale).apply(res)
+    return tf.keras.layers.Add().apply([inputs, res])
 
 def spatial_block(x, scales, filters_per_scale, kernel_size,
                   activation=tf.nn.leaky_relu, use_bias=True):

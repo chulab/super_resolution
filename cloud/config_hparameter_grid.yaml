@@ -6,17 +6,17 @@ trainingInput:
   pythonVersion: '3.5'
   runtimeVersion: '1.13'
   hyperparameters:
-    goal: MINIMIZE
+    goal: MAXIMIZE
     params:
       - parameterName: learning_rate
         type: DISCRETE
         discreteValues:
-          - .001
-          - .0001
-          - .00001
+          - .0000001
           - .000001
+          - .00001
+          - .0001
     maxTrials: !!int 4
     maxParallelTrials: !!int 4
-    hyperparameterMetricTag: rms
+    hyperparameterMetricTag: accuracy
     enableTrialEarlyStopping: TRUE
     algorithm: GRID_SEARCH

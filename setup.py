@@ -3,8 +3,11 @@ from setuptools import setup
 
 REQUIRED_PACKAGES = [
     'matplotlib >= 3',
-    'tensor2tensor',
+    'tensor2tensor==1.13.2',
     'matplotlib-scalebar',
+    'google-auth-oauthlib',
+    'tensorflow-probability==0.6.0',
+    'tflearn'
 ]
 
 setup(

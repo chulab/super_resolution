@@ -1,6 +1,6 @@
 import copy
 import numpy as np
-from tensor2tensor.layers import common_hparams
+from tensor2tensor.layers import common_hparams, common_attention
 from tensor2tensor.layers import common_image_attention as cia
 from tensor2tensor.layers import common_layers
 from tensor2tensor.layers import modalities
@@ -112,6 +112,28 @@ def custom_create_output(decoder_output, rows, cols, targets, hparams, target_vo
 class Imgs2imgTransformer(t2t_model.T2TModel):
   """Multiple Images 2 Image transformer net."""
 
+  def __init__(self,
+               hparams,
+               mode=tf.estimator.ModeKeys.TRAIN,
+               problem_hparams=None,
+               data_parallelism=None,
+               decode_hparams=None,
+               **kwargs):
+
+    super(Imgs2imgTransformer, self).__init__(
+      hparams,
+      mode,
+      problem_hparams,
+      data_parallelism,
+      decode_hparams,
+      **kwargs)
+
+    self.frequency_conv = tf.keras.layers.Conv2D(
+      filters=hparams.hidden_size,
+      kernel_size=(1, 1),
+      padding="same"
+    )
+
   def bottom(self, features):
     """Transforms features to feed into body.
 
@@ -211,8 +233,32 @@ class Imgs2imgTransformer(t2t_model.T2TModel):
     # inputs_shape = inputs.shape
     # inputs = tf.reshape(inputs, [self._hparams.batch_size, -1, inputs_shape[2], inputs_shape[3]])
     # print("Reshaped Inputs", inputs.shape)
+
+    # shape = inputs.shape
+    # inputs = tf.reshape(inputs, [-1, shape[1], shape[2] // len(hparams.frequency_indices),
+    #   len(hparams.frequency_indices) * hparams.hidden_size])
+    # inputs = self.frequency_conv(inputs)
+    # inputs = tf.keras.layers.BatchNormalization().apply(inputs)
+
     encoder_input = cia.prepare_encoder(inputs, hparams, hparams.enc_attention_type)
-    # print("Encoder Input", encoder_input.shape)
+
+    # encoder_input = self.frequency_conv(encoder_input)
+    # encoder_input = tf.keras.layers.BatchNormalization().apply(encoder_input)
+
+    enc_shape = encoder_input.shape
+    # reshaped_input = tf.reshape(encoder_input, [-1, enc_shape[1],
+    #   enc_shape[2] // len(hparams.frequency_indices), len(hparams.frequency_indices), hparams.hidden_size])
+    # tf.transpose(reshaped_input, [0, 1, 3, 2, 4])
+    # reshaped_input = tf.reshape(reshaped_input, [-1, enc_shape[1],
+    #   enc_shape[2], hparams.hidden_size])
+
+    # reshaped_input = tf.reshape(encoder_input, [-1, enc_shape[1], enc_shape[2] // len(hparams.frequency_indices),
+    #   len(hparams.frequency_indices) * hparams.hidden_size])
+    # encoder_input = self.frequency_conv(reshaped_input)
+    # encoder_input = tf.keras.layers.BatchNormalization().apply(encoder_input)
+    # print(encoder_input.shape)
+    # encoder_input = cia.prepare_encoder(inputs, hparams, hparams.enc_attention_type)
+
     encoder_output = cia.transformer_encoder_layers(
         encoder_input,
         hparams.num_encoder_layers,
@@ -236,6 +282,212 @@ class Imgs2imgTransformer(t2t_model.T2TModel):
     output = tf.squeeze(output, axis=-2)
     # print("Final Output", output)
     return output
+
+
+@registry.register_model
+class Imgs2imgTransformerv2(t2t_model.T2TModel):
+  """Multiple Images 2 Image transformer net."""
+
+  def __init__(self,
+               hparams,
+               mode=tf.estimator.ModeKeys.TRAIN,
+               problem_hparams=None,
+               data_parallelism=None,
+               decode_hparams=None,
+               **kwargs):
+
+    super(Imgs2imgTransformerv2, self).__init__(
+      hparams,
+      mode,
+      problem_hparams,
+      data_parallelism,
+      decode_hparams,
+      **kwargs)
+
+    num_obs = len(hparams.angle_indices) * len(hparams.frequency_indices)
+    image_pixels = (hparams.example_shape //
+      hparams.observation_pool_downsample) ** 2
+
+    self.mix_emb = tf.get_variable(
+      name="channel_emb",
+      shape=[1, image_pixels, problem_hparams.vocab_size["targets"]],
+      initializer=tf.initializers.truncated_normal()
+    )
+
+  def bottom(self, features):
+    """Transforms features to feed into body.
+
+    Args:
+      features: dict of str to Tensor. Typically it is the preprocessed data
+        batch after Problem's preprocess_example().
+
+    Returns:
+      transformed_features: dict of same key-value pairs as features. The value
+        Tensors are newly transformed.
+    """
+    if not self._problem_hparams:
+      log_warn("Without a Problem, T2TModel.bottom is a passthrough.")
+      return features
+
+    transformed_features = collections.OrderedDict()
+    all_previous_modalities = []
+    target_modality = t2t_model._create_target_modality(self._problem_hparams.modality)
+
+    # Transform features via its corresponding modality.
+    for feature_name, modality in sorted(
+        six.iteritems(self._problem_hparams.modality)):
+      if feature_name not in features:
+        tf.logging.warning("Missing feature %s - ignoring." % feature_name)
+        continue
+      vocab_size = self._problem_hparams.vocab_size[feature_name]
+      if vocab_size is not None and hasattr(self._hparams, "vocab_divisor"):
+        vocab_size += (-vocab_size) % self._hparams.vocab_divisor
+      modality_name = self._hparams.name.get(
+          feature_name,
+          modalities.get_name(modality))(self._hparams, vocab_size)
+      # Use if-else clauses to preserve behavior of previous changes: namely,
+      # the variable scope name for the targets feature if there is only one
+      # target modality; and to reuse variable scopes for only input modalities.
+      if feature_name in target_modality:
+        if len(target_modality) > 1:
+          variable_scope_name = "%s/%s" % (modality_name, feature_name)
+        else:
+          variable_scope_name = modality_name
+        bottom = self._hparams.bottom.get(
+            feature_name,
+            modalities.get_targets_bottom(modality))
+        # TODO(aidangomez): share variables?
+        with tf.variable_scope(variable_scope_name) as vs:
+          self._add_variable_scope(variable_scope_name, vs)
+          print("Transforming feature '%s' with %s.targets_bottom" %
+                   (feature_name,
+                   modality_name))
+          t2t_model.log_info("Transforming feature '%s' with %s.targets_bottom",
+                   feature_name,
+                   modality_name)
+          transformed_features[feature_name] = bottom(features[feature_name],
+                                                      self._hparams,
+                                                      vocab_size)
+          # print("Target Before", features[feature_name].shape)
+          # print("Target Transformed", transformed_features[feature_name].shape)
+      else:
+        bottom = self._hparams.bottom.get(feature_name,
+                                          modalities.get_bottom(modality))
+        do_reuse = modality_name in all_previous_modalities
+        with tf.variable_scope(modality_name, reuse=do_reuse) as vs:
+          self._add_variable_scope(modality_name, vs)
+          print("Transforming feature '%s' with %s.targets_bottom" %
+                   (feature_name,
+                   modality_name))
+          t2t_model.log_info("Transforming feature '%s' with %s.bottom",
+                   feature_name,
+                   modality_name)
+          transformed_features[feature_name] = bottom(features[feature_name],
+                                                      self._hparams,
+                                                      vocab_size)
+          # print("Input Before", features[feature_name].shape)
+          # print("Input Transformed", transformed_features[feature_name].shape)
+        all_previous_modalities.append(modality_name)
+
+    for key in features:
+      if key not in transformed_features:
+        # For features without a modality, we pass them along as is
+        transformed_features[key] = features[key]
+      else:
+        # Other features get passed along with the "raw" suffix
+        transformed_features[key + "_raw"] = features[key]
+
+    return transformed_features
+
+
+  def body(self, features):
+    hparams = copy.copy(self._hparams)
+    targets = features["targets"]
+    inputs = features["inputs"]
+
+    num_obs = len(hparams.angle_indices) * len(hparams.frequency_indices)
+    storage = []
+    for i, input in enumerate(tf.split(inputs, num_obs, -2)):
+      with tf.variable_scope("channel_%d" % i):
+        encoder_input = cia.prepare_encoder(input, hparams, hparams.enc_attention_type)
+        encoder_output = cia.transformer_encoder_layers(
+            encoder_input,
+            hparams.num_encoder_layers,
+            hparams,
+            attention_type=hparams.enc_attention_type,
+            name="encoder")
+        # print("Encoder Output", encoder_output.shape)
+        # print("Body Targets", targets.shape)
+        decoder_input, rows, cols = cia.prepare_decoder(
+            targets, hparams)
+        # print("Decoder Input", decoder_input.shape)
+        decoder_output = cia.transformer_decoder_layers(
+            decoder_input,
+            encoder_output,
+            hparams.num_decoder_layers,
+            hparams,
+            attention_type=hparams.dec_attention_type,
+            name="decoder")
+        # print("Decoder Output", decoder_output.shape)
+        output = custom_create_output(decoder_output, rows, cols, targets, hparams, self._problem_hparams.vocab_size["targets"])
+        output = tf.squeeze(output, axis=-2)
+        # print("Final Output", output)
+        storage.append(output)
+
+    if num_obs > 1:
+      concat_output = tf.concat(storage, -2)
+    else:
+      concat_output = storage[0]
+
+
+    temp = hparams.hidden_size
+    hparams.hidden_size = 16
+    mix_encoder_input = cia.prepare_encoder(concat_output, hparams,
+      hparams.enc_attention_type)
+    mix_encoder_output = cia.transformer_encoder_layers(
+        mix_encoder_input,
+        hparams.num_mix_layers,
+        hparams,
+        attention_type=hparams.enc_attention_type,
+        name="mixer")
+
+    num_classes = self._problem_hparams.vocab_size["targets"]
+
+    mix_encoder_output = tf.reshape(mix_encoder_output,
+      shape=[-1, mix_encoder_output.shape[1] *
+        mix_encoder_output.shape[2], num_classes])
+
+    batch_mix_emb = tf.ones([tf.shape(mix_encoder_output)[0], 1, 1]) * self.mix_emb
+
+    length = hparams.example_shape // hparams.observation_pool_downsample
+    final_output = common_attention.multihead_attention(
+      batch_mix_emb,
+      mix_encoder_output,
+      None,
+      num_classes,
+      num_classes,
+      num_classes,
+      4,
+      hparams.attention_dropout,
+      name="mix_attention"
+    )
+
+    final_output = tf.reshape(final_output, shape=[-1, length, length,
+      num_classes])
+    # final_output = common_attention.multihead_attention_2d(
+    #   self.mix_emb,
+    #   mix_encoder_output,
+    #   16,
+    #   16,
+    #   16,
+    #   4,
+    #   query_shape=(8, 8 * num_obs // 2),
+    #   memory_flange=(8, 8),
+    # )
+
+    hparams.hidden_size = temp
+
+    return final_output
 
 
 def custom_image_transformer2d_base():
@@ -372,27 +624,3 @@ def super_reso_problem_hparams(input_vocab_size, target_vocab_size, model_hparam
   """Problem hparams for testing model bodies."""
   p = SuperResoProblem(input_vocab_size, target_vocab_size)
   return p.get_hparams(model_hparams)
-
-
-
-# batch_size = 4
-# num_images = 5
-# size = 7
-# vocab_size = 100
-# hparams = custom_img2img_transformer2d_tiny()
-# hparams.add_hparam("example_shape", 8)
-# hparams.num_channels = num_images
-# p_hparams = super_reso_problem_hparams(vocab_size, vocab_size, hparams)
-# inputs = np.random.randint(
-#     vocab_size, size=(batch_size, 8, 8, num_images))
-# targets = np.random.randint(
-#     vocab_size, size=(batch_size, size, size, 1))
-#
-#
-# features = {
-#   "inputs": tf.constant(inputs, dtype=tf.float32),
-#   "targets": tf.constant(targets, dtype=tf.int32),
-#   "target_space_id": tf.constant(1, dtype=tf.float32),
-# }
-# model = Imgs2imgTransformer(hparams, tf.estimator.ModeKeys.TRAIN, p_hparams)
-# logits, _ = model(features)

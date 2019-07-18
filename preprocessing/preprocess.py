@@ -216,6 +216,29 @@ def select_frequency(frequency_index):
   return select_frequency_
 
 
+def select_frequencies(indices):
+
+  def select_frequencies_(distribution, observation):
+
+    observation = tf.stack([observation[..., index] for index in indices], -1)
+
+    return distribution, observation
+
+  return select_frequencies_
+
+
+def select_angles(indices):
+
+  def select_angles_(distribution, observation):
+
+    observation = tf.stack([observation[index, ...] for index in indices], 0)
+
+    return distribution, observation
+
+  return select_angles_
+
+
+
 def swap(distribution, observation):
   return observation, distribution
 
