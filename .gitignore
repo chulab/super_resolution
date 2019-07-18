@@ -70,3 +70,8 @@ fabric.properties
 .DS_Store
 
 *__pycache__
+
+*/test_data/*
+
+# Python log files.
+*.log

@@ -1,0 +1,28 @@
+# Configuration for google cloud ml with gpu and hyperparameter optimization.
+
+trainingInput:
+  region: us-west1
+  scaleTier: BASIC_GPU
+  pythonVersion: '3.5'
+  runtimeVersion: '1.13'
+  hyperparameters:
+    goal: MINIMIZE
+    params:
+      - parameterName: scatterer_density
+        type: DISCRETE
+        discreteValues:
+          - 1.e9
+          - 5.e9
+          - 10.e9
+          - 50.e9
+          - 100.e9
+      - parameterName: objective
+        type: CATEGORICAL
+        categoricalValues:
+          - PROBABILITY
+          - SCATTERER
+    maxTrials: !!int 10
+    maxParallelTrials: !!int 5
+    hyperparameterMetricTag: accuracy_weight
+    enableTrialEarlyStopping: FALSE
+    algorithm: GRID_SEARCH

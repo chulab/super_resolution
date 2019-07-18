@@ -3,7 +3,9 @@
 import numpy as np
 from scipy import signal
 
-from typing import List
+from typing import List, Union
+
+import tensorflow as tf
 
 from simulation import utils
 from simulation import defs
@@ -203,9 +205,10 @@ def _complex_beam_parameter(
 
 
 def coordinate_grid(
-    lengths: List[float],
-    grid_dimensions: List[float],
+    lengths: List[Union[float, tf.Tensor]],
+    grid_dimensions: List[Union[float, tf.Tensor]],
     center: bool,
+    mode="NUMPY",
 ):
   """Creates coordinate meshgrids of arbitrary dimension.
 
@@ -224,17 +227,24 @@ def coordinate_grid(
     documentation for `np.meshgrid`.
   """
   if len(lengths) != len(grid_dimensions):
-    raise ValueError("`lengths` and `grid_dimensions` must have same number of "
-                     "elements")
+    raise ValueError("`lengths` and `grid_dimensions` must have same number of"
+                     " elements")
 
-  coordinates = [np.arange(0, length + step, step) for
+  if mode=="NUMPY":
+    range_fn = np.arange
+    meshgrid = np.meshgrid
+  else:
+    range_fn = tf.range
+    meshgrid = tf.meshgrid
+
+  coordinates = [range_fn(0, length + step, step) for
                  length, step in zip(lengths, grid_dimensions)]
 
   if center:
     centers = [length / 2 for length in lengths]
     coordinates = [coor - center for coor, center in zip(coordinates, centers)]
 
-  return np.meshgrid(*coordinates, indexing='ij')
+  return meshgrid(*coordinates, indexing='ij')
 
 
 def hermite_gaussian_mode(
@@ -328,7 +338,7 @@ def gaussian_impulse_response(
   spatial_phase = np.exp(-1j * wavenumber * coordinates[..., 2])
 
   # Compute grid size in z-axis.
-  dz = coordinates[0, 0, 1, 2]-coordinates[0, 0, 0, 2]
+  dz = coordinates[0, 0, 1, 2] - coordinates[0, 0, 0, 2]
 
   # Compute windowing amplitude which is applied to the gaussian beam.
   pulse_window = gaussian_pulse(

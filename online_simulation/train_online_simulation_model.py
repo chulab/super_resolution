@@ -9,17 +9,14 @@ import tensorflow as tf
 # Add `super_resolution` package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from analysis import plot_utils
-
-from cloud_utils import save_utils
 from online_simulation import online_simulation_model
 from online_simulation import online_dataset_utils
 from online_simulation import online_simulation_utils
 
 from utils import logging_utils
 
-_PREDICT="PREDICT"
-_TRAIN="TRAIN"
+_PREDICT = "PREDICT"
+_TRAIN = "TRAIN"
 
 
 def make_train_params():
@@ -87,7 +84,6 @@ def train_and_evaluate(
   tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 
 
-
 def parse_args():
   parser = argparse.ArgumentParser()
 
@@ -120,23 +116,33 @@ def parse_args():
 
   parser.add_argument(
     '--simulation_params',
-    help = 'Comma separated list of "name=value" pairs.',
-    default = '',
+    help='Comma separated list of "name=value" pairs.',
+    default='',
   )
 
   parser.add_argument(
     '--train_params',
-    help = 'Comma separated list of "name=value" pairs.',
-    default = '',
+    help='Comma separated list of "name=value" pairs.',
+    default='',
   )
 
   parser.add_argument(
     '--warm_start_from',
-    help = 'Warm start file.',
-    default = None,
+    help='Warm start file.',
+    default=None,
   )
 
-  ## HPARAMETER TUNING ARGS
+  # HPARAMETER TUNING ARGS
+  parser.add_argument(
+    '--scatterer_density',
+    type=float,
+    default=1e9,
+  )
+  parser.add_argument(
+    '--db',
+    type=float,
+    default=10.,
+  )
   parser.add_argument(
     '--angle_count',
     type=int,
@@ -168,14 +174,14 @@ def parse_args():
     default=1
   )
   parser.add_argument(
-    '--frequency_sigma',
-    type=float,
-    default=1e6
-  )
-  parser.add_argument(
     '--learning_rate',
     type=float,
-    default=.001,
+    default=None,
+  )
+  parser.add_argument(
+    '--objective',
+    type=str,
+    default=None,
   )
   parser.add_argument(
     '--train_steps',
@@ -195,55 +201,52 @@ def main():
   logging_utils.set_up_logging()
 
   dataset_params = online_dataset_utils.dataset_params()
+  dataset_params.scatterer_density = args.scatterer_density
+  dataset_params.db = args.db
   dataset_params.parse(args.dataset_params)
 
   simulation_params = online_simulation_utils.simulation_params()
   simulation_params.parse(args.simulation_params)
 
-  descriptions=online_simulation_utils.grid_psf_descriptions(
-    angle_limit=args.angle_limit,
-    angle_count=args.angle_count,
-    min_frequency=args.min_frequency,
-    max_frequency=args.max_frequency,
-    frequency_count=args.frequency_count,
-    mode_count=args.mode_count,
-  )
-  simulation_params.psf_descriptions=descriptions
-  simulation_params.frequency_sigma=args.frequency_sigma
-
   model_params = online_simulation_model.make_hparams()
-  model_params.learning_rate=args.learning_rate
   model_params.parse(args.model_params)
+  if args.learning_rate is not None:
+    model_params.learning_rate = args.learning_rate
+  if args.objective is not None:
+    model_params.objective = args.objective
 
   train_params = make_train_params()
-  train_params.train_steps=args.train_steps
   train_params.parse(args.train_params)
+  if args.train_steps is not None:
+    train_params.train_steps = args.train_steps
 
-  train_input_fn =lambda: online_dataset_utils.distribution_dataset(
-    dataset_type=dataset_params.dataset_type,
-    physical_dimension=dataset_params.physical_dimension,
-    grid_dimension=dataset_params.grid_dimension,
-    min_radius=dataset_params.min_radius,
-    max_radius=dataset_params.max_radius,
-    max_count=dataset_params.max_count,
-    background_noise=dataset_params.background_noise,
-    lambda_multiplier=dataset_params.lambda_multiplier,
-  )
+  def train_input_fn():
+    return online_dataset_utils.random_circles_dataset(
+      physical_dimension=dataset_params.physical_dimension,
+      grid_unit=dataset_params.grid_dimension,
+      min_radius=dataset_params.min_radius,
+      max_radius=dataset_params.max_radius,
+      max_count=dataset_params.max_count,
+      scatterer_density=dataset_params.scatterer_density,
+      db=dataset_params.db
+    )
 
-  psfs = online_simulation_utils.make_psf(
-    psf_dimension=simulation_params.psf_dimension,
-    grid_dimension=dataset_params.grid_dimension,
-    descriptions=simulation_params.psf_descriptions,
-    numerical_aperture=simulation_params.numerical_aperture,
-    frequency_sigma=simulation_params.frequency_sigma,
-  )
+  simulation_params.psf_descriptions = online_simulation_utils.grid_psf_descriptions(
+      angle_limit=args.angle_limit,
+      angle_count=args.angle_count,
+      min_frequency=args.min_frequency,
+      max_frequency=args.max_frequency,
+      frequency_count=args.frequency_count,
+      mode_count=args.mode_count,
+      numerical_aperture=simulation_params.numerical_aperture,
+      frequency_sigma=simulation_params.frequency_sigma,
+    )
 
-  fig = plot_utils.plot_grid(psfs, scale=dataset_params.grid_dimension,)
-  save_utils.maybe_save_cloud(fig, args.job_dir)
+  model_params.psf_descriptions = simulation_params.psf_descriptions
+  model_params.grid_dimension = dataset_params.grid_dimension
+  model_params.psf_dimension = simulation_params.psf_dimension
 
-  model_params.psfs=psfs
-
-  if args.mode==_TRAIN:
+  if args.mode == _TRAIN:
     train_and_evaluate(
       output_directory=args.job_dir,
       train_input=train_input_fn,
