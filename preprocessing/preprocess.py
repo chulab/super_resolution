@@ -280,3 +280,68 @@ def per_tensor_scale(
   batch_maximum = tf.reduce_max(tensor, axis=shape[1:], keepdims=True)
   tensor_scaled = tensor / (batch_maximum + epsilon)
   return tensor_scaled * (max_val - min_val) + min_val
+
+
+def gpu_preprocess(observations, distributions, params):
+  '''
+  Applies hilbert transform, rotates observations, and selects observations of
+  particular frequencies and angles, setting them to the last dimension.
+
+
+  Arguments:
+    observations: `tf.Tensor` of shape (B, A, H, W, F) where A refers to angles
+      and F refers to frequencies.
+    distributions: `tf.Tensor` of shape (B, H, W).
+    params: `tf.contrib.training.HParams` with arguments
+      `angle_indices`: indices along angle dimension to select.
+      `frequency_indices`: indices along frequency dimension to select.
+      `distribution_pool_downsample`: factor to downsample distribution by.
+      `observation_pool_downsample`: factor to downsample distribution by.
+
+  Returns:
+    observations: `tf.Tensor` of shape (B, H', W', A'xF') where H', W' are
+      downsampled observation height and width and A', F' are number of angles
+      and frequencies selected.
+    distributions: `tf.Tensor` of shape (B, H'', W'') where H'', W'' are
+      downsampled distribution height and width.
+  '''
+
+  distributions, observations = hilbert(hilbert_axis=3)(distributions,
+    observations)
+
+  num_angles = len(params.angle_indices)
+  num_freqs = len(params.frequency_indices)
+
+  distributions = distributions[ ..., tf.newaxis]
+  distributions = tf.keras.layers.AveragePooling2D(
+    params.distribution_pool_downsample).apply(distributions) * (
+      params.distribution_pool_downsample ** 2)
+  distributions = distributions[..., 0]
+
+  angles = params.observation_spec.angles
+
+  observation_pooling_layer = tf.keras.layers.AveragePooling2D(
+    params.observation_pool_downsample)
+
+  storage = []
+  for freqs, ang in zip(tf.split(observations, observations.shape[1], 1),
+    angles):
+    pooled = observation_pooling_layer.apply(tf.squeeze(freqs, 1))
+
+    #note: height and width are lost after rotation so they need to be saved.
+    height = int(pooled.shape[1])
+    width = int(pooled.shape[2])
+    rotated = tf.contrib.image.rotate(pooled, -1 * ang,
+      interpolation='BILINEAR')
+
+    storage.append(rotated)
+
+  if len(storage) > 1:
+    observations = tf.keras.layers.Concatenate(axis=-1).apply(storage)
+  else:
+    observations = storage[0]
+
+  observations.set_shape([None, height, width, num_angles * num_freqs])
+
+
+  return observations, distributions

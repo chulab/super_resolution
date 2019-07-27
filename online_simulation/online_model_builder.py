@@ -1,14 +1,14 @@
-"""Model that performs simulation of US images online."""
+"""Online version of Model builder. Refer to trainer/model_builder.py for
+descriptions of hparams."""
 
 import tensorflow as tf
-import math
+
 import logging
 
 from online_simulation import online_simulation_utils
-from trainer import loss_utils
-from trainer.model_builder import squeeze_excitation
+import math
+from trainer import loss_utils, model_builder
 from preprocessing import preprocess
-from online_simulation import online_dataset_utils
 
 
 _PROBABILITY = "PROBABILITY"
@@ -17,169 +17,15 @@ _SCATTERER = "SCATTERER"
 
 def make_hparams() -> tf.contrib.training.HParams:
   """Create a HParams object specifying model hyperparameters."""
-  return tf.contrib.training.HParams(
-    bit_depth=2,
-    learning_rate=0.001,
-    decay_step=500,
-    decay_rate=.9,
-    psf_dimension=None,
-    grid_dimension=None,
-    psf_descriptions=None,
-    log_steps=100,
-    objective=_SCATTERER,
-    squeeze_excite=False,
-    downsample_bits=4,
-    prepool_bits=0,
-  )
-
-
-def entry_flow(input_layer, repeats=2):
-  """Begining of CNN."""
-  with tf.name_scope("entry_flow"):
-    network = input_layer
-    # For residual, we want same number of filters as input.
-    filters = input_layer.shape.as_list()[-1]
-
-    for _ in range(repeats):
-      residual = tf.keras.layers.AveragePooling2D(2, padding='same')(network)
-      network = tf.keras.layers.Activation('relu')(network)
-      network = tf.keras.layers.SeparableConv2D(
-          filters=filters,
-          kernel_size=[3, 3],
-          padding="same",
-          use_bias=True,
-          strides=2,
-        ).apply(network)
-      network = tf.keras.layers.BatchNormalization()(network)
-      network = tf.keras.layers.add([network, residual])
-
-    return network
-
-
-def _conv_block(
-    input_layer,
-    filters=64,
-    kernel_size=[3, 3],
-    squeeze_excite=False,
-):
-  with tf.name_scope("conv_block"):
-    network = input_layer
-    residual = network
-    network = tf.keras.layers.Activation('relu').apply(network)
-    network = tf.keras.layers.SeparableConv2D(
-      filters=filters,
-      depth_multiplier=1,
-      kernel_size=kernel_size,
-      padding="same",
-      use_bias=True,
-    ).apply(network)
-    network = tf.keras.layers.BatchNormalization().apply(network)
-    network = tf.keras.layers.Activation('relu')(network)
-    network = tf.keras.layers.SeparableConv2D(
-      filters=filters,
-      depth_multiplier=1,
-      kernel_size=kernel_size,
-      padding="same",
-      use_bias=True,
-      dilation_rate=2,
-    ).apply(network)
-    network = tf.keras.layers.BatchNormalization().apply(network)
-    network = tf.keras.layers.Activation('relu')(network)
-    network = tf.keras.layers.SeparableConv2D(
-      filters=filters,
-      depth_multiplier=1,
-      kernel_size=kernel_size,
-      padding="same",
-      use_bias=True,
-      dilation_rate=4,
-    ).apply(network)
-    network = tf.keras.layers.BatchNormalization().apply(network)
-    if squeeze_excite:
-      network = squeeze_excitation(network)
-    network = tf.keras.layers.add([network, residual])
-    return network
-
-
-def _downsample_block(
-    input_layer,
-    depthwise_kernel_size=[3, 3],
-    depth_multiplier=1,
-):
-  with tf.name_scope("downsample_block"):
-    network = tf.keras.layers.DepthwiseConv2D(
-      depth_multiplier=depth_multiplier,
-      kernel_size=depthwise_kernel_size,
-      dilation_rate=1,
-      padding="same",
-      strides=2,
-    ).apply(input_layer)
-    network = tf.keras.layers.BatchNormalization().apply(network)
-    return network
-
-
-def _upsample_block(
-    input_layer,
-    depthwise_kernel_size=[3, 3],
-    filters=64,
-):
-  network = tf.keras.layers.Conv2DTranspose(
-    filters=filters,
-    kernel_size=depthwise_kernel_size,
-    dilation_rate=1,
-    padding="same",
-    strides=2,
-  ).apply(input_layer)
-  network = tf.keras.layers.BatchNormalization().apply(network)
-  return network
-
-
-def network(input_layer, average_image, training, squeeze_excite,
-  downsample_bits, prepool_bits):
-  """Definition of network.
-
-  Args:
-    `input_layer`: `tf.Tensor` node which outputs shapes `[b, h, w, c]`.
-    These represent observations.
-    training: Bool which sets whether network is in a training or evaluation/
-      test mode. (Drop out is turned on during training but off during
-      eval.)
-  """
-  with tf.name_scope("model"):
-    layers = {}
-
-    network = tf.concat([input_layer, average_image], -1)
-    if prepool_bits > 0:
-      prepool_factor = 2 ** prepool_bits
-      network = _downsample_by_pool(network, prepool_factor)
-
-    filters = network.shape.as_list()[-1]
-    network = entry_flow(network, repeats=(downsample_bits - prepool_bits - 2))
-
-    downsampled_average_image = _downsample_by_pool(average_image, 2 **
-      downsample_bits)
-
-    for i in range(2):
-      network = _conv_block(network, filters=filters,
-        squeeze_excite=squeeze_excite)
-      network = _downsample_block(network)
-      layers['downsample_{}'.format(i)] = network
-
-    for i in range(3):
-      network = _conv_block(network, filters=filters, kernel_size=5,
-        squeeze_excite=squeeze_excite)
-
-    logging.info("size after network {}".format(network))
-
-    network = tf.concat([network, downsampled_average_image], -1)
-
-    network = tf.layers.dropout(network, training=training)
-
-    return network
-
-
-def _downsample_by_pool(tensor, kernel_size):
-  pool_layer = tf.keras.layers.AveragePooling2D(kernel_size, padding='same')
-  return pool_layer.apply(tensor)
+  hparams = model_builder.make_hparams()
+  hparams.add_hparam("psf_dimension", None)
+  hparams.add_hparam("grid_dimension", None)
+  hparams.add_hparam("psf_descriptions", None)
+  hparams.add_hparam("objective", _SCATTERER)
+  hparams.add_hparam("log_steps", 100)
+  hparams.add_hparam("concat_avg", False)
+  hparams.add_hparam("downsample_bits", 4)
+  return hparams
 
 
 def process_target(target, downsample_factor, bit_depth, lambda_multiplier=None):
@@ -243,10 +89,10 @@ def model_fn(features, labels, mode, params):
 
   with tf.name_scope("distributions"):
     DOWNSAMPLE = 2 ** params.downsample_bits
+
     full_resolution_scatterer = features['scatterer_distribution']
-    scatterer_targets = process_target(
-      full_resolution_scatterer, DOWNSAMPLE, params.bit_depth,
-      lambda_multiplier = params.lambda_multiplier)
+    scatterer_targets = process_target(full_resolution_scatterer,
+      DOWNSAMPLE, params.bit_depth, params.lambda_multiplier)
     logging.info("scatterer_targets {}".format(scatterer_targets))
 
     full_resolution_probability = (
@@ -255,21 +101,19 @@ def model_fn(features, labels, mode, params):
       full_resolution_probability, DOWNSAMPLE, params.bit_depth)
     logging.info("probability_targets {}".format(probability_targets))
 
-    mean, variance = tf.nn.moments(features['scatterer_distribution'][0], [0, 1])
-    feature_hook = tf.train.LoggingTensorHook(
-      tensors={"scatterers": features['scatterer_distribution'][0],
-               "probability": features['probability_distribution'][0],
-               "max": tf.reduce_max(features['scatterer_distribution'][0]),
-               "mean": mean,
-               "variance": variance},
-      every_n_iter=params.log_steps,
-    )
-    train_hooks.append(feature_hook)
-
     if params.objective == _PROBABILITY:
       target = probability_targets
     if params.objective == _SCATTERER:
       target = scatterer_targets
+
+    target_hook = tf.train.LoggingTensorHook(
+      tensors={"full_reso_scat": features['scatterer_distribution'][0],
+               "full_reso_prob": features['probability_distribution'][0],
+               "full_reso": target['full_resolution'][0],
+               "class": target['class'][0]},
+      every_n_iter=params.log_steps,
+    )
+    train_hooks.append(target_hook)
 
   with tf.variable_scope("observations"):
     psfs = online_simulation_utils.make_psf(
@@ -316,19 +160,42 @@ def model_fn(features, labels, mode, params):
     else:
       training = False
 
-    features = network(observations['raw'], observations['average'], training,
-      params.squeeze_excite, params.downsample_bits, params.prepool_bits)
-    logging.info("features {}".format(features))
+    if params.concat_avg:
+      concated = tf.concat([observations['raw'], observations['average']], -1)
+      embedded = model_builder.get_embedding(concated, params.embedding)
+    else:
+      embedded = model_builder.get_embedding(observations['raw'],
+        params.embedding)
+    input = tf.keras.layers.Input(tensor=embedded)
 
-    # Get discretized predictions.
-    predictions_quantized = tf.keras.layers.Conv2D(
-      filters=2 ** params.bit_depth,
-      kernel_size=[1, 1],
-      dilation_rate=1,
-      padding="same",
-      activation=None,
-      use_bias=False,
-    ).apply(features)
+    if params.concat_avg:
+      num_classes = None
+    else:
+      num_classes= 2 ** params.bit_depth
+
+    if params.model_type == 'unet':
+      model = model_builder.build_unet_from_propagator(input, params,
+        num_classes)
+      predictions_quantized = model(embedded)
+    else:
+      model = model_builder.build_model_from_propagator(input, params,
+        num_classes)
+      predictions_quantized = model(embedded)
+
+    if params.concat_avg:
+      downsampled_average_image = tf.keras.layers.AveragePooling2D(DOWNSAMPLE,
+        padding='same').apply(observations['average'])
+      predictions_quantized = tf.concat([predictions_quantized,
+        downsampled_average_image], -1)
+      predictions_quantized = tf.keras.layers.Conv2D(
+        filters=2 ** params.bit_depth,
+        kernel_size=[1, 1],
+        dilation_rate=1,
+        padding="same",
+        activation=None,
+        use_bias=False,
+      ).apply(predictions_quantized)
+
     logging.info("predictions_quantized {}".format(predictions_quantized))
     prediction_class = loss_utils._logit_to_class(predictions_quantized)
     predictions = {
@@ -354,7 +221,6 @@ def model_fn(features, labels, mode, params):
       pred_summary = tf.summary.image("prediction_image", prediction_image, 1)
       diff_summary = tf.summary.image("difference", difference, 1)
 
-      # for Google Slides summary 
       dist_t_summary = tf.summary.tensor_summary("distribution_tensor", target_image)
       pred_t_summary = tf.summary.tensor_summary("predictions_tensor", prediction_image)
       diff_t_summary = tf.summary.tensor_summary("difference_tensor", target_image-prediction_image)
@@ -388,7 +254,13 @@ def model_fn(features, labels, mode, params):
     )
 
   with tf.name_scope("loss"):
-    proportional_weights = loss_utils.inverse_class_weight(target['one_hot'])
+    less_equal = tf.less_equal(tf.train.get_global_step(), params.scale_steps)
+    lr = tf.cond(less_equal, lambda: tf.constant(params.learning_rate),
+      lambda: tf.constant(params.learning_rate / 1000))
+
+    proportional_weights = loss_utils.bets_and_rewards_weight(
+      target['one_hot'], target['class'], prediction_class, params)
+
     proportion_hook = tf.train.LoggingTensorHook(
       tensors={"proportional_weights": proportional_weights[0],
                "min_weight": tf.reduce_min(proportional_weights)},
@@ -405,7 +277,7 @@ def model_fn(features, labels, mode, params):
 
   with tf.name_scope("optimizer"):
     learning_rate = tf.train.exponential_decay(
-      learning_rate=params.learning_rate,
+      learning_rate=lr,
       global_step=tf.train.get_global_step(),
       decay_steps=params.decay_step,
       decay_rate=params.decay_rate,
@@ -430,17 +302,42 @@ def model_fn(features, labels, mode, params):
     mean_squared_error = tf.metrics.mean_squared_error(
       labels=target['class'], predictions=predictions['class'])
 
-    accuracy_no_weight = tf.metrics.accuracy(
+    accuracy = tf.metrics.accuracy(
       labels=target['class'], predictions=predictions['class'])
 
+    proportional_weights = loss_utils.inverse_class_weight(
+      target['one_hot'])
     accuracy_weight = tf.metrics.accuracy(
       labels=target['class'], predictions=predictions['class'],
       weights=proportional_weights,)
 
+    precision = tf.metrics.precision(
+      labels=target['class'], predictions=predictions['class'])
+
+    recall = tf.metrics.recall(
+      labels=target['class'], predictions=predictions['class'])
+
+    f1 = tf.where(tf.equal(precision[0] + recall[0], 0.),
+      tf.constant(0, dtype=tf.float32), 2 * precision[0] * recall[0] /
+      (precision[0] + recall[0]))
+
+    non_zero = tf.where(tf.equal(0, tf.cast(target['class'], dtype=tf.int32)),
+      -1 * tf.ones_like(target['class']), target['class'])
+    non_zero_correct = tf.math.reduce_sum(tf.cast(
+      tf.equal(non_zero, predictions['class']), dtype=tf.int32))
+    total_non_zero =tf.math.reduce_sum(tf.cast(tf.not_equal(0,
+      tf.cast(target['class'], dtype=tf.int32)), dtype=tf.int32))
+    non_zero_acc = tf.where(tf.equal(total_non_zero, 0),
+      tf.constant(0, dtype=tf.float64), non_zero_correct / total_non_zero)
+
     eval_metric_ops = {
-      "accuracy_weight": accuracy_weight,
-      "accuracy_no_weight": accuracy_no_weight,
+      "accuracy_weighted": accuracy_weight,
+      "accuracy": accuracy,
       "mean_squared_error": mean_squared_error,
+      "precision": precision,
+      "recall": recall,
+      "f1": tf.metrics.mean(f1),
+      "non_zero_acc": tf.metrics.mean(non_zero_acc),
     }
 
   return tf.estimator.EstimatorSpec(

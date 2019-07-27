@@ -152,7 +152,7 @@ class USSimulator():
 
   def ft_tensor(self, tensor, dft_size):
     with tf.name_scope("ft_tensor"):
-      tensor = tf_fft_conv.pad_to_size(tensor, dft_size)
+      tensor = tf_fft_conv.pad_last_to_size(tensor, dft_size)
       tensor = tf_fft_conv.convert_to_complex(tensor)
       return tf.fft2d(tensor)
 
@@ -167,7 +167,9 @@ class USSimulator():
       filter = tf_fft_conv.ifftshift_split(filter)
       filter = tf_fft_conv.convert_to_complex(filter)
       tensor = tensor * filter
-      tensor = tf.ifft2d(tensor)[fslice]
+      excess_slice = tuple([slice(elem) for elem in tensor.shape.as_list()[:-2]])
+      full_slice = excess_slice + fslice
+      tensor = tf.ifft2d(tensor)[full_slice]
       envelope_tensor_out = tf.abs(tensor)
       signal_tensor_out = tf.real(tensor)
 
@@ -192,7 +194,7 @@ class USSimulator():
               psf.psf_description.frequency_sigma * 2
           ),
           fslice=self._fslice(
-            distribution.shape.as_list(), psf.array.shape.as_list()),
+            distribution.shape.as_list()[-2:], psf.array.shape.as_list()[-2:]),
           mode="same"
         ) for psf in self.psfs]
 

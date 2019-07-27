@@ -40,10 +40,12 @@ def parse_cloud_directory(path):
 
 
 class CredentialsHelper():
+  """Helper for Google Credentials."""
   def __init__(self, service_account_path, cloud_train=False):
       self.cloud_train = cloud_train
       if cloud_train:
-        service_account_info = json.load(file_io.FileIO(service_account_path, 'r'))
+        service_account_info = json.load(file_io.FileIO(service_account_path,
+          'r'))
         self.creds = service_account.Credentials.from_service_account_info(
           service_account_info)
       else:
@@ -69,6 +71,7 @@ class CredentialsHelper():
 
 
 class StorageHelper():
+  """Helper for Google Storage."""
   def __init__(self, creds):
     self.creds = creds
     self.client = storage.Client(credentials=creds)
@@ -89,6 +92,7 @@ class StorageHelper():
   def delete_file(self, full_bucket_path):
     blob = self.find_blob(full_bucket_path)
     blob.delete()
+
 
   def list_blobs_with_prefix(self, full_bucket_path, delimiter=None):
     """Lists all the blobs in the bucket that begin with the prefix.
@@ -121,6 +125,7 @@ class StorageHelper():
     full_paths = ["gs://" + os.path.join(bucket_name, blob.name) for blob in blobs]
 
     return full_paths
+
 
   def save_fig(
       self,
@@ -241,6 +246,11 @@ class StorageHelper():
 
 
 class SlidesHelper():
+  """
+  Helper for Google Slides. All member functions append requests for a
+  batchUpdate request to ensure concurrency. It is the responsibility of the
+  caller to call execute() to send the batchUpdate.
+  """
   def __init__(self, pres_id, creds):
       self.service= build('slides', 'v1', credentials=creds)
       self.requests = []
@@ -260,10 +270,10 @@ class SlidesHelper():
 
 
   def duplicate_slide(self, slide_no):
-      '''
+      """
       Creates a duplicate of a slide, with the new slide being below the
-      original unless move_above is true.
-      '''
+      original.
+      """
 
       page_id = self.pres['slides'][slide_no]['objectId']
       note_id = self.pres['slides'][slide_no]['slideProperties']['notesPage'] \
@@ -298,7 +308,7 @@ class SlidesHelper():
 
   def replace_text(self, slide_id, search_string, texts,
       labels=None, separator=':'):
-      '''
+      """
       Replaces objects containing search_string with new text given in texts.
       If labels are given, each label is placed before each text in texts
       and separated by the separator.
@@ -309,7 +319,7 @@ class SlidesHelper():
           texts: array of texts to be used.
           labels: title of each text.
           separator: character between labels and texts.
-      '''
+      """
 
       if labels:
           new_text = ''.join([label + separator + ' ' + text + '\n' for
@@ -361,8 +371,6 @@ class SlidesHelper():
 
 
   def add_comment(self, note_id, comment):
-      # note_id = slide['slideProperties']['notesPage'] \
-      #     ['notesProperties']['speakerNotesObjectId']
       self.requests.append({
           'insertText': {
               'objectId': note_id,
@@ -371,10 +379,12 @@ class SlidesHelper():
           }
       })
 
+
   def refresh(self):
       self.pres = self.service.presentations().get(
       presentationId=self.pres_id).execute()
       self.add = 0
+
 
   def execute(self):
       self.service.presentations().batchUpdate(body={'requests': self.requests},
@@ -384,6 +394,11 @@ class SlidesHelper():
 
 
 class SlideTemplater():
+  """
+  Highest level API to create a Google Slide from a summary. See examples of
+  summaries in analysis/summaries.py. It is the responsibility of the
+  caller to call execute() to properly batch requests.
+  """
   def __init__(self, cloud_train, service_account_path, pres_id):
       self.credentials = CredentialsHelper(service_account_path, cloud_train)
       creds = self.credentials.get_credentials()
@@ -397,7 +412,31 @@ class SlideTemplater():
   def fill_template_from_cloud(self, texts_array, full_bucket_paths,
           labels_array = None, separator_array = None,
           template_no = -1, comment = None, temp_storage = False):
+      """
+      Fills texts, images and comment according to a template Google slide.
+      Example raw and filled templates are given in analysis/example_template
+      and analysis/example_template_filled.png.
 
+      Replacing text:
+        Searches template slide for textbox with placeholder `text{i}` and
+        replaces placeholder with
+          `{i}th elem of labels_array + {i}th elem of separator_array +
+           {i}th elem of texts_array`.
+
+      Replacing image:
+        Searches template slide for rectangle with placeholder `image{i}` and
+        fills rectangle with image stored in {i}th element of full_bucket_paths.
+
+      Args:
+        texts_array: List of text strings.
+        full_bucket_paths: List of Google storage paths of image files.
+        labels_array: List of labels for texts_array.
+        separator_array: List of separators for texts_array.
+        template_no: Index of template Google Slide.
+        comment: Comment to add to template.
+        temp_storage: Bool denoting whether images in full_bucket_paths should
+          be deleted after execution.
+      """
       img_url_array = []
       for b_path in full_bucket_paths:
           img_url_array.append(self.storage.generate_signed_url(b_path, 10000))
@@ -409,7 +448,6 @@ class SlideTemplater():
           self.slides.add_comment(new_note_id, comment)
 
       self.template_id = slide_id
-      # self.slides.move_to_back(slide_id)
       if temp_storage:
         self.paths += full_bucket_paths
 
@@ -417,7 +455,15 @@ class SlideTemplater():
   def upload_and_fill_template(self, texts_array, fig_or_path_array,
           full_bucket_paths, labels_array = None, separator_array = None,
           template_no = -1, comment = None, temp_storage = False):
+      """
+      Uploads figures and fills template.
 
+      Args:
+        fig_or_path_array: List of plt.Figures or local filepaths of images.
+        full_bucket_paths: List of Google Storage paths to save images to.
+
+      Refer to `fill_template_from_cloud` for other arguments.
+      """
       for fig_or_path, b_path in zip(fig_or_path_array, full_bucket_paths):
           self.storage.upload_maybe_fig(fig_or_path, b_path)
 

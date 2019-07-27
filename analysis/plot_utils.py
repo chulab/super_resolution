@@ -10,6 +10,7 @@ import tensorflow as tf
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 from mpl_toolkits.axes_grid1 import ImageGrid
 from collections import OrderedDict
+from online_simulation import online_simulation_utils
 
 from scipy import signal
 from scipy import stats
@@ -376,6 +377,7 @@ def plot_grid_from_tensorboard(
   step,
   titles = None,
   same = True,
+  limit = None,
   **kwargs
 ):
   '''
@@ -390,6 +392,9 @@ def plot_grid_from_tensorboard(
     titles: List of strings, denoting titles of the tensors.
     same: Whether a common colorbar (and/or scalebar) should be used.
     **kwargs: refer to plot_grid.
+
+  Returns:
+    List of figures depicting each set of image tensors.
   '''
 
   if len(tensor_tags) == 0:
@@ -398,13 +403,65 @@ def plot_grid_from_tensorboard(
   collated = get_tensors_from_tensorboard(tb_dir, tensor_tags, step)
   collated = np.stack(collated, -1)
 
+  if limit is not None:
+    collated = collated[:limit, ...]
+
   if same:
     plot_fn = plot_same_grid
   else:
     plot_fn = plot_grid
 
-  #plot figure for each set
-  figures = [plot_fn(np.squeeze(np.split(np.squeeze(images, 0), images.shape[-1]
-    , -1), -1)) for images in np.split(collated, collated.shape[0], 0)]
+  # split along batch dim (0) to obtain each set of images before splitting
+  # along last dim (-1) to generate a list of each set
+  split_images = [[np.squeeze(im, -1) for im in
+    np.split(np.squeeze(images, 0), images.shape[-1], -1)] for images in
+    np.split(collated, collated.shape[0], 0)]
+  figures = [plot_fn(images, titles=titles, **kwargs) for images in
+    split_images]
+
+  return figures
+
+def plot_observation_from_distribution(
+  distribution,
+  psfs,
+  grid_dimension,
+  limit = None,
+  **kwargs
+):
+  '''
+  Simulates US signals from scatterers given psfs and plots them in a grid
+  figure.
+
+  Args:
+    distribution: np.ndarray of shape [B, H, W].
+    psfs: List of defs.PsfDescription.
+    grid_dimension: float representing grid size in metres.
+    limit: maximum number of sets along batch dimension to plot.
+    **kwargs: refer to plot_grid.
+
+  Returns:
+    List of figures.
+  '''
+  distribution = tf.convert_to_tensor(distribution)
+  if limit is not None:
+    distribution = distribution[:limit, ...]
+
+  sim = online_simulation_utils.USSimulator(
+    psfs=psfs,
+    image_grid_size=distribution.shape.as_list()[1:],
+    grid_dimension=grid_dimension,
+  )
+
+  simulated = sim.observation_from_distribution(distribution)
+  simulated = simulated.eval()
+
+  titles = ["A {} F {} M {}".format('{:.3g}'.format(p.angle), '{:.3g}'.format(
+    p.psf_description.frequency), p.psf_description.mode) for p in psfs]
+
+  split_images = [[np.squeeze(im, -1) for im in
+    np.split(np.squeeze(images, 0), images.shape[-1], -1)] for images in
+    np.split(simulated, simulated.shape[0], 0)]
+  figures = [plot_grid(images, titles=titles, **kwargs) for images in
+    split_images]
 
   return figures

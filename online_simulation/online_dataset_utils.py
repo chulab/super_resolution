@@ -7,7 +7,6 @@ autograph = contrib.autograph
 
 from simulation import response_functions
 
-
 def dataset_params():
   return tf.contrib.training.HParams(
     dataset_type="CIRCLE",
@@ -17,7 +16,7 @@ def dataset_params():
     max_radius=1.5e-3,
     max_count=4,
     background_noise=0,
-    scatterer_density=1.e9,
+    scatterer_density=1.e11,
     db=10.,
   )
 
@@ -193,6 +192,7 @@ def random_circles_dataset(
     max_count,
     scatterer_density,
     db,
+    batch_size = 1,
 ):
   physical_dimensions = [physical_dimension] * 2
 
@@ -228,6 +228,7 @@ def random_circles_dataset(
     probability_distribution=tensor, lambda_multiplier=lambda_multiplier
   ), num_parallel_calls=-1)
 
+  dataset = dataset.batch(batch_size)
   dataset = dataset.prefetch(1)
 
   return dataset

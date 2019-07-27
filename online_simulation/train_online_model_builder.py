@@ -5,11 +5,12 @@ import logging
 import os
 import sys
 import tensorflow as tf
+import json
 
 # Add `super_resolution` package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from online_simulation import online_simulation_model
+from online_simulation import online_model_builder
 from online_simulation import online_dataset_utils
 from online_simulation import online_simulation_utils
 
@@ -27,7 +28,7 @@ def make_train_params():
     profile_steps=1,
     save_checkpoint_steps=200,
     log_step_count=20,
-    batch_size=3,
+    batch_size=4,
   )
 
 
@@ -192,6 +193,18 @@ def parse_args():
   )
 
   parser.add_argument(
+    '--forward_kwargs',
+    type=str,
+    default=None,
+  )
+
+  parser.add_argument(
+    '--pooler_filters',
+    type=lambda s: [int(index) for index in s.split(',')],
+    default=None,
+  )
+
+  parser.add_argument(
     '--service_account_path',
     type=str,
     help='path to service account credentials for Google utilities',
@@ -213,8 +226,6 @@ def parse_args():
 def main():
 
   args = parse_args()
-  if 'builder' in args.job_dir:
-    args.slide_id = '12Oi7VcegNxGbmeRFY081gvSEGe7rsRDnxPN2juFknSw'
 
   logging_utils.set_up_logging()
 
@@ -226,13 +237,22 @@ def main():
   simulation_params = online_simulation_utils.simulation_params()
   simulation_params.parse(args.simulation_params)
 
-  model_params = online_simulation_model.make_hparams()
+  model_params = online_model_builder.make_hparams()
   model_params.parse(args.model_params)
   model_params.add_hparam("job_dir", args.job_dir)
+
+  lambda_multiplier = online_dataset_utils.density_to_lambda(
+    dataset_params.scatterer_density, dataset_params.grid_dimension)
+  model_params.add_hparam('lambda_multiplier', lambda_multiplier)
+
   if args.learning_rate is not None:
     model_params.learning_rate = args.learning_rate
   if args.objective is not None:
     model_params.objective = args.objective
+  if args.forward_kwargs is not None:
+    model_params.forward_kwargs = json.loads(args.forward_kwargs)
+  if args.pooler_filters is not None:
+    model_params.pooler_filters = args.pooler_filters
 
   train_params = make_train_params()
   train_params.parse(args.train_params)
@@ -248,7 +268,7 @@ def main():
       max_count=dataset_params.max_count,
       scatterer_density=dataset_params.scatterer_density,
       db=dataset_params.db,
-      batch_size=train_params.batch_size
+      batch_size=train_params.batch_size,
     )
 
   simulation_params.psf_descriptions = online_simulation_utils.grid_psf_descriptions(
@@ -266,10 +286,6 @@ def main():
   model_params.grid_dimension = dataset_params.grid_dimension
   model_params.psf_dimension = simulation_params.psf_dimension
 
-  lambda_multiplier = online_dataset_utils.density_to_lambda(
-    dataset_params.scatterer_density, dataset_params.grid_dimension)
-  model_params.add_hparam('lambda_multiplier', lambda_multiplier)
-
   if args.mode == _TRAIN:
     train_and_evaluate(
       output_directory=args.job_dir,
@@ -277,7 +293,7 @@ def main():
       eval_input=train_input_fn,
       train_steps=train_params.train_steps,
       eval_steps=train_params.eval_steps,
-      model_fn=online_simulation_model.model_fn,
+      model_fn=online_model_builder.model_fn,
       model_params=model_params,
       warm_start_from=args.warm_start_from,
       profile_steps=train_params.profile_steps,
@@ -288,23 +304,20 @@ def main():
     tb_dir = args.job_dir + "/eval"
     if 'gs' in args.job_dir:
       save_dir = args.job_dir
-      # save_dir = args.job_dir + "_{}_{}_{}".format(args.angle_count,
-      #   args.frequency_count, args.mode_count)
     else:
       save_dir = "gs://chu_super_resolution_experiment/test_output"
 
     # steps, _ = plot_utils.get_all_tensor_from_tensorboard(tb_dir, 'features/images/distribution_tensor')
     # steps = sorted(list(dict.fromkeys(steps)))
     steps = [train_params.train_steps]
-    summaries.summarize_online_simulation(
-      args,
+    summaries.summarize_online_builder(args,
       dataset_params,
       simulation_params,
       model_params,
       steps,
       tb_dir,
-      save_dir
-    )
+      save_dir)
+
 
 if __name__ == "__main__":
   main()
