@@ -142,7 +142,7 @@ def model_fn(features, labels, mode, params):
 
     observations = {
       "raw": raw,
-      "average": average_obs,
+      "average": tf.reduce_mean(raw, -1, keepdims=True),
       "normalized": preprocess.per_tensor_scale(raw, -1., 1.),
       "descriptions": params.psf_descriptions,
       "average_downsampled": processed_average_obs["downsample"],
