@@ -136,13 +136,13 @@ def model_fn(features, labels, mode, params):
 
     logging.info("Observation variables {}".format(tf.all_variables()))
 
-    average_obs = tf.reduce_mean(raw, -1, keepdims=True)
+    average_obs = tf.reduce_mean(raw, -1, keepdims=False)
     processed_average_obs = process_target(average_obs, DOWNSAMPLE,
       params.bit_depth, params.lambda_multiplier)
 
     observations = {
       "raw": raw,
-      "average": tf.reduce_mean(raw, -1, keepdims=True),
+      "average": average_obs,
       "normalized": preprocess.per_tensor_scale(raw, -1., 1.),
       "descriptions": params.psf_descriptions,
       "average_downsampled": processed_average_obs["downsample"],
