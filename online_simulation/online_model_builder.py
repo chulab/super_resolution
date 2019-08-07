@@ -136,11 +136,17 @@ def model_fn(features, labels, mode, params):
 
     logging.info("Observation variables {}".format(tf.all_variables()))
 
+    average_obs = tf.reduce_mean(raw, -1, keepdims=True)
+    processed_average_obs = process_target(average_obs, DOWNSAMPLE,
+      params.bit_depth, params.lambda_multiplier)
+
     observations = {
       "raw": raw,
       "average": tf.reduce_mean(raw, -1, keepdims=True),
       "normalized": preprocess.per_tensor_scale(raw, -1., 1.),
       "descriptions": params.psf_descriptions,
+      "average_downsampled": processed_average_obs["downsample"],
+      "average_downsampled_class": processed_average_obs["class"],
     }
 
     with tf.name_scope("image_summary"):
@@ -245,6 +251,8 @@ def model_fn(features, labels, mode, params):
       "normalized_observations": observations['normalized'],
       "observations_unnormalized": observations['raw'],
       "average_observation": observations['average'],
+      "average_observation_downsampled": observations['average_downsampled'],
+      "average_observation_downsampled_class": observations['average_downsampled_class'],
     }
 
   if mode == tf.estimator.ModeKeys.PREDICT:
