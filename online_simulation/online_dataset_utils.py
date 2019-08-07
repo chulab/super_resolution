@@ -192,7 +192,7 @@ def random_circles_dataset(
     max_count,
     scatterer_density,
     db,
-    batch_size = 1,
+    batch_size = 0,
 ):
   physical_dimensions = [physical_dimension] * 2
 
@@ -228,7 +228,8 @@ def random_circles_dataset(
     probability_distribution=tensor, lambda_multiplier=lambda_multiplier
   ), num_parallel_calls=-1)
 
-  dataset = dataset.batch(batch_size)
+  if batch_size > 0:
+    dataset = dataset.batch(batch_size)
   dataset = dataset.prefetch(1)
 
   return dataset
