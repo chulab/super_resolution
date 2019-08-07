@@ -178,7 +178,7 @@ def scatter_with_error_bar(
   ax.scatter(x, y, s=2)
 
 
-def plot_same_grid(images, file_name=None, titles=None, min=None, max=None,
+def plot_same_grid(images, file_name=None, titles=None, vmin=None, vmax=None,
   **kwargs):
   '''
   Plots in a grid with a single common scale and color bar.
@@ -206,13 +206,13 @@ def plot_same_grid(images, file_name=None, titles=None, min=None, max=None,
                  cbar_pad=0.15,
                  )
   stacked = np.stack(images, axis=0)
-  if min is None:
-    min = np.amin(stacked)
-  if max is None:
-    max = np.amax(stacked)
+  if vmin is None:
+    vmin = np.amin(stacked)
+  if vmax is None:
+    vmax = np.amax(stacked)
 
   for i, (p, ax) in enumerate(zip(images, grid)):
-    im = ax.imshow(p, vmin=min, vmax=max)
+    im = ax.imshow(p, vmin=vmin, vmax=vmax)
     if titles is not None:
       ax.set_title(titles[i])
 
