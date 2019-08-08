@@ -182,9 +182,9 @@ def model_fn(features, labels, mode, params):
         num_classes)
       predictions_quantized = model(embedded)
 
+    downsampled_average_image = tf.keras.layers.AveragePooling2D(DOWNSAMPLE,
+      padding='same').apply(observations['average'])
     if params.concat_avg:
-      downsampled_average_image = tf.keras.layers.AveragePooling2D(DOWNSAMPLE,
-        padding='same').apply(observations['average'])
       predictions_quantized = tf.concat([predictions_quantized,
         downsampled_average_image], -1)
       predictions_quantized = tf.keras.layers.Conv2D(
@@ -330,6 +330,12 @@ def model_fn(features, labels, mode, params):
     non_zero_acc = tf.where(tf.equal(total_non_zero, 0),
       tf.constant(0, dtype=tf.float64), non_zero_correct / total_non_zero)
 
+    squeezed = tf.squeeze(downsampled_average_image, -1)
+    imse_weight = loss_utils.optimal_mse_weight(target['class'],
+      squeezed)
+    imse = tf.metrics.mean_squared_error(labels=tf.cast(target['class'],
+      tf.float32), predictions=imse_weight * squeezed)
+
     eval_metric_ops = {
       "accuracy_weighted": accuracy_weight,
       "accuracy": accuracy,
@@ -338,6 +344,7 @@ def model_fn(features, labels, mode, params):
       "recall": recall,
       "f1": tf.metrics.mean(f1),
       "non_zero_acc": tf.metrics.mean(non_zero_acc),
+      "compounded_imse": imse,
     }
 
   return tf.estimator.EstimatorSpec(

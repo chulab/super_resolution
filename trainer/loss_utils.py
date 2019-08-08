@@ -186,3 +186,20 @@ def bets_and_rewards_weight(distributions_quantized, distribution_class,
     * int(distribution_class.shape[1]) * int(distribution_class.shape[2])
 
   return proportional_weights
+
+def optimal_mse_weight(target, estimate):
+  '''Computes weights that minimizes l2 norm of target - weights * estimate.
+
+  Args:
+    target: tf.Tensor of shape [batch, dimensions].
+    estimate: tf.Tensor of shape [batch, dimensions].
+
+  Returns:
+    tf.Tensor of shape [batch, 1, 1, ...] with equal number of dimensions as
+    estimate.
+  '''
+  axis = [i for i in range(1, len(target.shape))]
+  projection = tf.reduce_sum(tf.cast(target, tf.float32) * estimate,
+    axis=axis, keepdims=True)
+  norm = tf.reduce_sum(estimate * estimate, axis=axis, keepdims=True)
+  return projection / norm
