@@ -6,6 +6,11 @@ from matplotlib_scalebar import scalebar
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
+import tensorflow as tf
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+from mpl_toolkits.axes_grid1 import ImageGrid
+from collections import OrderedDict
+from online_simulation import online_simulation_utils
 
 from scipy import signal
 from scipy import stats
@@ -47,13 +52,14 @@ def plot_observation_prediction_distribution(
   ax[2].add_artist(sb)
   colorbar(p)
 
-  output_file = os.path.join(output_dir, 'prediction_and_true_distribution')
-  plt.savefig(output_file)
-
   plt.tight_layout(h_pad=1)
 
-  del fig
-
+  if output_dir is not None:
+    output_file = os.path.join(output_dir, 'prediction_and_true_distribution')
+    plt.savefig(output_file)
+    del fig
+  else:
+    return fig
 
 def plot_observation_example(
     observation,
@@ -102,14 +108,15 @@ def find_nearest_square_divisor(x: int):
       return (n, int(x / n))
     n -= 1
 
-def plot_grid(images, file_name=None, **kwargs):
+def plot_grid(images, file_name=None, titles=None, **kwargs):
   """Plots a list of images in a grid.
 
-  Either saves or reuturns matplotlib figure.
+  Either saves or returns matplotlib figure.
 
   Args:
     images: List of 2D np.ndarrays.
     file_name: Optional string representing path to save figure.
+    titles: List of strings, denoting title for each image in grid.
     **kwargs: kwargs passed to `plot_with_colorbar_and_scalebar`.
 
   Returns:
@@ -121,7 +128,9 @@ def plot_grid(images, file_name=None, **kwargs):
     ax = ax.flatten()
   else:
     ax = [ax]
-  for a, p in zip(ax, images):
+  for i, (a, p) in enumerate(zip(ax, images)):
+    if titles is not None:
+      a.set_title(titles[i])
     plot_with_colorbar_and_scalebar(a, p, **kwargs)
 
   if file_name is not None:
@@ -167,3 +176,295 @@ def scatter_with_error_bar(
 
   # Scatter plot of data.
   ax.scatter(x, y, s=2)
+
+
+def plot_same_grid(images, file_name=None, titles=None, vmin=None, vmax=None,
+  **kwargs):
+  '''
+  Plots in a grid with a single common scale and color bar.
+
+  Either saves or returns matplotlib figure.
+
+  Args:
+    images: List of 2D np.ndarrays.
+    file_name: Optional string representing path to save figure.
+    titles: List of strings, denoting title for each image in grid.
+    **kwargs: if `scale` is in **kwargs, plots scalebar according to scale.
+
+  Returns:
+    If no `file_name` is provided, then returns figure containing plots.
+  '''
+  r, c = find_nearest_square_divisor(len(images))
+  fig = plt.figure()
+  grid = ImageGrid(fig, 111,          # as in plt.subplot(111)
+                 nrows_ncols=(r,c),
+                 axes_pad=0.15,
+                 share_all=True,
+                 cbar_location="right",
+                 cbar_mode="single",
+                 cbar_size="7%",
+                 cbar_pad=0.15,
+                 )
+  stacked = np.stack(images, axis=0)
+  if vmin is None:
+    vmin = np.amin(stacked)
+  if vmax is None:
+    vmax = np.amax(stacked)
+
+  for i, (p, ax) in enumerate(zip(images, grid)):
+    im = ax.imshow(p, vmin=vmin, vmax=vmax)
+    if titles is not None:
+      ax.set_title(titles[i])
+
+  ax.cax.colorbar(im)
+  ax.cax.toggle_label(True)
+
+  if 'scale' in kwargs is not None:
+    sb = scalebar.ScaleBar(kwargs['scale'])
+    ax.add_artist(sb)
+
+  # proportion horizontally between grid and colorbar
+  rect_width = (3 * c) / (3 * c + 1)
+  rect=[0, 0, rect_width, 1]
+  plt.tight_layout(rect=rect)
+
+  if file_name is not None:
+    plt.savefig(file_name)
+    plt.close(fig)
+  else:
+    return fig
+
+
+def get_tensors_from_tensorboard(
+  tb_dir,
+  tensor_tags,
+  step,
+  squeeze_last = True,
+):
+  '''
+  Retrieves all tensors given by their tags from a TFEvent file at a given step.
+
+  Args:
+    tb_dir: Directory of TFEvent file
+    tensor_tags: Name (with namescope) of tensors used when calling tf.summary.
+    step: Step to retrieve tensors.
+    squeeze_last: Whether last dimension of tensors should be squeezed.
+
+  Returns:
+    List of retrieved tensors.
+    If the ith tensor has shape [tensor_shape], the ith element of the list will
+    be of the shape [times, tensor_shape] where times is the number of times the
+    ith tensor appears during the given step.
+  '''
+
+  acc = EventAccumulator(tb_dir)
+  acc.Reload()
+
+  collated = []
+
+  with tf.Graph().as_default():
+    for tag in tensor_tags:
+      tag_storage = []
+      for tensor in acc.Tensors(tag):
+        if tensor.step == step:
+          # tag_array has shape (batch, tensor_base_shape) or
+          # (batch, tensor_base_shape, 1)
+          tag_array = tf.make_ndarray(tensor.tensor_proto)
+          if squeeze_last:
+            tag_array = np.squeeze(tag_array, axis=-1)
+          tag_storage.append(tag_array)
+      concated = np.concatenate(tag_storage, axis=0)
+      collated.append(concated)
+
+  return collated
+
+
+def get_scalars_from_tensorboard(
+  tb_dir,
+  scalar_tags,
+  step,
+):
+  '''
+  Retrieves all scalars given by their tags from a TFEvent file at a given step.
+
+  Args:
+    tb_dir: Directory of TFEvent file
+    scalar_tags: Name (with namescope) of scalars used when calling tf.summary.
+    step: Step to retrieve tensors.
+
+  Returns:
+    List of retrieved scalars.
+  '''
+
+  acc = EventAccumulator(tb_dir)
+  acc.Reload()
+  collated = []
+
+  with tf.Graph().as_default():
+    for tag in scalar_tags:
+      for scalar in acc.Scalars(tag):
+        if scalar.step == step:
+          collated.append(scalar.value)
+
+  return collated
+
+def get_all_tensor_from_tensorboard(
+  tb_dir,
+  tensor_tag
+):
+  '''
+  Retrieves all instances of a tensor with a given tag across all steps in a
+  TFEvent.
+
+  Args:
+    tb_dir: Directory of TFEvent file
+    tensor_tag: Name (with namescope) of tensor used when calling tf.summary.
+
+  Returns:
+    List of steps and List of tensor instances.
+    Because a tensor may appear multiple times in one step, tensor instances
+    belonging to the same step are stacked along the 0th dimension.
+  '''
+
+
+  acc = EventAccumulator(tb_dir)
+  acc.Reload()
+
+  step_to_record = OrderedDict()
+
+  with tf.Graph().as_default():
+    for tensor in acc.Tensors(tensor_tag):
+      array = np.squeeze(tf.make_ndarray(tensor.tensor_proto), -1)
+      if tensor.step not in step_to_record:
+        step_to_record[tensor.step] = []
+      step_to_record[tensor.step].append(array)
+
+  steps = step_to_record.keys()
+  record = step_to_record.values()
+  record = [np.concatenate(tensor_list, 0) for tensor_list in record]
+
+  return steps, record
+
+def get_all_scalar_from_tensorboard(
+  tb_dir,
+  scalar_tag
+):
+  '''
+  Retrieves all instances of a scalar with a given tag across all steps in a
+  TFEvent.
+
+  Args:
+    tb_dir: Directory of TFEvent file
+    scalar_tag: Name (with namescope) of scalar used when calling tf.summary.
+
+  Returns:
+    List of steps and List of scalar instances.
+  '''
+
+  acc = EventAccumulator(tb_dir)
+  acc.Reload()
+  scalar_record = []
+  steps = []
+
+  with tf.Graph().as_default():
+    for scalar in acc.Scalars(scalar_tag):
+      scalar_record.append(scalar.value)
+      steps.append(scalar.step)
+
+  return steps, scalar_record
+
+
+def plot_grid_from_tensorboard(
+  tb_dir,
+  tensor_tags,
+  step,
+  titles = None,
+  same = True,
+  limit = None,
+  **kwargs
+):
+  '''
+  Searches event files in tensorboard directory for image tensors labelled by
+  tags at a certain step. Plots a grid figure from these image tensors
+  (as a set) for each time they appear.
+
+  Args:
+    tb_dir: directory to search.
+    tensor_tags: array of names/tags used when calling tf.summary.
+    step: desired step.
+    titles: List of strings, denoting titles of the tensors.
+    same: Whether a common colorbar (and/or scalebar) should be used.
+    **kwargs: refer to plot_grid.
+
+  Returns:
+    List of figures depicting each set of image tensors.
+  '''
+
+  if len(tensor_tags) == 0:
+    return
+
+  collated = get_tensors_from_tensorboard(tb_dir, tensor_tags, step)
+  collated = np.stack(collated, -1)
+
+  if limit is not None:
+    collated = collated[:limit, ...]
+
+  if same:
+    plot_fn = plot_same_grid
+  else:
+    plot_fn = plot_grid
+
+  # split along batch dim (0) to obtain each set of images before splitting
+  # along last dim (-1) to generate a list of each set
+  split_images = [[np.squeeze(im, -1) for im in
+    np.split(np.squeeze(images, 0), images.shape[-1], -1)] for images in
+    np.split(collated, collated.shape[0], 0)]
+  figures = [plot_fn(images, titles=titles, **kwargs) for images in
+    split_images]
+
+  return figures
+
+def plot_observation_from_distribution(
+  distribution,
+  psfs,
+  grid_dimension,
+  limit = None,
+  **kwargs
+):
+  '''
+  Simulates US signals from scatterers given psfs and plots them in a grid
+  figure.
+
+  Args:
+    distribution: np.ndarray of shape [B, H, W].
+    psfs: List of defs.PsfDescription.
+    grid_dimension: float representing grid size in metres.
+    limit: maximum number of sets along batch dimension to plot.
+    **kwargs: refer to plot_grid.
+
+  Returns:
+    List of figures.
+  '''
+  distribution = tf.convert_to_tensor(distribution)
+  if limit is not None:
+    distribution = distribution[:limit, ...]
+
+  sim = online_simulation_utils.USSimulator(
+    psfs=psfs,
+    image_grid_size=distribution.shape.as_list()[1:],
+    grid_dimension=grid_dimension,
+  )
+
+  simulated = sim.observation_from_distribution(distribution)
+  simulated = simulated.eval()
+
+  titles = ["A {} F {} M {}".format('{:.3g}'.format(p.angle), '{:.3g}'.format(
+    p.psf_description.frequency), p.psf_description.mode) for p in psfs]
+
+  split_images = [[np.squeeze(im, -1) for im in
+    np.split(np.squeeze(images, 0), images.shape[-1], -1)] for images in
+    np.split(simulated, simulated.shape[0], 0)]
+  figures = [plot_grid(images, titles=titles, **kwargs) for images in
+    split_images]
+
+  return figures

@@ -14,6 +14,7 @@ from online_simulation import online_dataset_utils
 from online_simulation import online_simulation_utils
 
 from utils import logging_utils
+from analysis import plot_utils, recorder_utils, summaries
 
 _PREDICT = "PREDICT"
 _TRAIN = "TRAIN"
@@ -26,6 +27,7 @@ def make_train_params():
     profile_steps=1,
     save_checkpoint_steps=200,
     log_step_count=20,
+    batch_size=3,
   )
 
 
@@ -189,6 +191,20 @@ def parse_args():
     default=2000,
   )
 
+  parser.add_argument(
+    '--service_account_path',
+    type=str,
+    help='path to service account credentials for Google utilities',
+    default='gs://chu_super_resolution_data/service-account.json'
+  )
+
+  parser.add_argument(
+    '--slide_id',
+    type=str,
+    help='Google slide id for summary',
+    default='1qEPqSxcSXh2GcDpSZjqTKRvIZlzWes8V9tVT6FMBxL4'
+  )
+
   args, _ = parser.parse_known_args()
 
   return args
@@ -197,6 +213,8 @@ def parse_args():
 def main():
 
   args = parse_args()
+  if 'builder' in args.job_dir:
+    args.slide_id = '12Oi7VcegNxGbmeRFY081gvSEGe7rsRDnxPN2juFknSw'
 
   logging_utils.set_up_logging()
 
@@ -210,6 +228,7 @@ def main():
 
   model_params = online_simulation_model.make_hparams()
   model_params.parse(args.model_params)
+  model_params.add_hparam("job_dir", args.job_dir)
   if args.learning_rate is not None:
     model_params.learning_rate = args.learning_rate
   if args.objective is not None:
@@ -228,7 +247,8 @@ def main():
       max_radius=dataset_params.max_radius,
       max_count=dataset_params.max_count,
       scatterer_density=dataset_params.scatterer_density,
-      db=dataset_params.db
+      db=dataset_params.db,
+      batch_size=train_params.batch_size
     )
 
   simulation_params.psf_descriptions = online_simulation_utils.grid_psf_descriptions(
@@ -246,6 +266,10 @@ def main():
   model_params.grid_dimension = dataset_params.grid_dimension
   model_params.psf_dimension = simulation_params.psf_dimension
 
+  lambda_multiplier = online_dataset_utils.density_to_lambda(
+    dataset_params.scatterer_density, dataset_params.grid_dimension)
+  model_params.add_hparam('lambda_multiplier', lambda_multiplier)
+
   if args.mode == _TRAIN:
     train_and_evaluate(
       output_directory=args.job_dir,
@@ -261,6 +285,26 @@ def main():
       log_step_count=train_params.log_step_count
     )
 
+    tb_dir = args.job_dir + "/eval"
+    if 'gs' in args.job_dir:
+      save_dir = args.job_dir
+      # save_dir = args.job_dir + "_{}_{}_{}".format(args.angle_count,
+      #   args.frequency_count, args.mode_count)
+    else:
+      save_dir = "gs://chu_super_resolution_experiment/test_output"
+
+    # steps, _ = plot_utils.get_all_tensor_from_tensorboard(tb_dir, 'features/images/distribution_tensor')
+    # steps = sorted(list(dict.fromkeys(steps)))
+    steps = [train_params.train_steps]
+    summaries.summarize_online_simulation(
+      args,
+      dataset_params,
+      simulation_params,
+      model_params,
+      steps,
+      tb_dir,
+      save_dir
+    )
 
 if __name__ == "__main__":
   main()

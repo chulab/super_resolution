@@ -1,0 +1,8 @@
+[
+  "trainer/encdec_test.py::EncoderTest::testEncode",
+  "trainer/encdec_test.py::EncoderTest::testFreqAngleEmbedding",
+  "trainer/encdec_test.py::EncoderTest::testSinusoidalEmbedding",
+  "trainer/encdec_test.py::EncoderTest::test_session",
+  "trainer/encdec_test.py::DecoderTest::testDecode",
+  "trainer/encdec_test.py::DecoderTest::test_session"
+]

@@ -49,6 +49,9 @@ def train_and_evaluate(
   logging.info("TF_CONFIG {}".format(tf_config))
 
   # Load `RunConfig`.
+  # config_proto = tf.ConfigProto()
+  # off = rewriter_config_pb2.RewriterConfig.OFF
+  # config_proto.graph_options.rewrite_options.arithmetic_optimization = off
   run_config = tf.estimator.RunConfig()
   run_config = run_config.replace(
     model_dir=output_directory,

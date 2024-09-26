@@ -1,12 +1,14 @@
 """Model that performs simulation of US images online."""
 
 import tensorflow as tf
-
+import math
 import logging
 
 from online_simulation import online_simulation_utils
 from trainer import loss_utils
+from trainer.model_builder import squeeze_excitation
 from preprocessing import preprocess
+from online_simulation import online_dataset_utils
 
 
 _PROBABILITY = "PROBABILITY"
@@ -24,40 +26,32 @@ def make_hparams() -> tf.contrib.training.HParams:
     grid_dimension=None,
     psf_descriptions=None,
     log_steps=100,
-    objective=_PROBABILITY,
+    objective=_SCATTERER,
+    squeeze_excite=False,
+    downsample_bits=4,
+    prepool_bits=0,
   )
 
 
-def entry_flow(input_layer):
+def entry_flow(input_layer, repeats=2):
   """Begining of CNN."""
   with tf.name_scope("entry_flow"):
     network = input_layer
     # For residual, we want same number of filters as input.
     filters = input_layer.shape.as_list()[-1]
 
-    residual = tf.keras.layers.AveragePooling2D(2, padding='same')(network)
-    network = tf.keras.layers.Activation('relu')(network)
-    network = tf.keras.layers.SeparableConv2D(
-        filters=filters,
-        kernel_size=[3, 3],
-        padding="same",
-        use_bias=True,
-        strides=2,
-      ).apply(network)
-    network = tf.keras.layers.BatchNormalization()(network)
-    network = tf.keras.layers.add([network, residual])
-
-    residual = tf.keras.layers.AveragePooling2D(2, padding='same')(network)
-    network = tf.keras.layers.Activation('relu')(network)
-    network = tf.keras.layers.SeparableConv2D(
-        filters=filters,
-        kernel_size=[3, 3],
-        padding="same",
-        use_bias=True,
-        strides=2,
-      ).apply(network)
-    network = tf.keras.layers.BatchNormalization()(network)
-    network = tf.keras.layers.add([network, residual])
+    for _ in range(repeats):
+      residual = tf.keras.layers.AveragePooling2D(2, padding='same')(network)
+      network = tf.keras.layers.Activation('relu')(network)
+      network = tf.keras.layers.SeparableConv2D(
+          filters=filters,
+          kernel_size=[3, 3],
+          padding="same",
+          use_bias=True,
+          strides=2,
+        ).apply(network)
+      network = tf.keras.layers.BatchNormalization()(network)
+      network = tf.keras.layers.add([network, residual])
 
     return network
 
@@ -66,6 +60,7 @@ def _conv_block(
     input_layer,
     filters=64,
     kernel_size=[3, 3],
+    squeeze_excite=False,
 ):
   with tf.name_scope("conv_block"):
     network = input_layer
@@ -99,6 +94,8 @@ def _conv_block(
       dilation_rate=4,
     ).apply(network)
     network = tf.keras.layers.BatchNormalization().apply(network)
+    if squeeze_excite:
+      network = squeeze_excitation(network)
     network = tf.keras.layers.add([network, residual])
     return network
 
@@ -136,7 +133,8 @@ def _upsample_block(
   return network
 
 
-def network(input_layer, average_image, training):
+def network(input_layer, average_image, training, squeeze_excite,
+  downsample_bits, prepool_bits):
   """Definition of network.
 
   Args:
@@ -150,18 +148,25 @@ def network(input_layer, average_image, training):
     layers = {}
 
     network = tf.concat([input_layer, average_image], -1)
-    filters = network.shape.as_list()[-1]
-    network = entry_flow(network)
+    if prepool_bits > 0:
+      prepool_factor = 2 ** prepool_bits
+      network = _downsample_by_pool(network, prepool_factor)
 
-    downsampled_average_image = _downsample_by_pool(average_image, 2 ** 4)
+    filters = network.shape.as_list()[-1]
+    network = entry_flow(network, repeats=(downsample_bits - prepool_bits - 2))
+
+    downsampled_average_image = _downsample_by_pool(average_image, 2 **
+      downsample_bits)
 
     for i in range(2):
-      network = _conv_block(network, filters=filters)
+      network = _conv_block(network, filters=filters,
+        squeeze_excite=squeeze_excite)
       network = _downsample_block(network)
       layers['downsample_{}'.format(i)] = network
 
     for i in range(3):
-      network = _conv_block(network, filters=filters, kernel_size=5)
+      network = _conv_block(network, filters=filters, kernel_size=5,
+        squeeze_excite=squeeze_excite)
 
     logging.info("size after network {}".format(network))
 
@@ -177,7 +182,7 @@ def _downsample_by_pool(tensor, kernel_size):
   return pool_layer.apply(tensor)
 
 
-def process_target(target, downsample_factor, bit_depth):
+def process_target(target, downsample_factor, bit_depth, lambda_multiplier=None):
   """Perform common processing on target tensor.
 
   Typically `target` will be either the scatterer distribution or
@@ -191,6 +196,7 @@ def process_target(target, downsample_factor, bit_depth):
       `[100, 100]`
     bit_depth: bit depth of output. The number of channels in the
       `quantized` output will be `2 ** bit_depth`.
+    lambda_multiplier: Poisson lambda used to generate dataset.
 
   Returns:
     Dictionary containing:
@@ -200,8 +206,13 @@ def process_target(target, downsample_factor, bit_depth):
       * one-hot: one-hot representation of `class`
   """
   downsample = loss_utils.downsample_target(target, downsample_factor)
+  if lambda_multiplier is not None:
+    # only consider 3 stds
+    max_value = lambda_multiplier + 3 * math.sqrt(lambda_multiplier)
+  else:
+    max_value = 1
   quantized_class, one_hot = loss_utils.quantize_tensor(
-    downsample, 2 ** bit_depth, 0., 1.)
+    downsample, 2 ** bit_depth, 0., max_value)
   return {
     "full_resolution": target,
     "downsample": downsample,
@@ -231,18 +242,29 @@ def model_fn(features, labels, mode, params):
   eval_hooks = []
 
   with tf.name_scope("distributions"):
-    DOWNSAMPLE = 2 ** 4
-
-    full_resolution_scatterer = features['scatterer_distribution'][tf.newaxis]
+    DOWNSAMPLE = 2 ** params.downsample_bits
+    full_resolution_scatterer = features['scatterer_distribution']
     scatterer_targets = process_target(
-      full_resolution_scatterer, DOWNSAMPLE, params.bit_depth)
+      full_resolution_scatterer, DOWNSAMPLE, params.bit_depth,
+      lambda_multiplier = params.lambda_multiplier)
     logging.info("scatterer_targets {}".format(scatterer_targets))
 
     full_resolution_probability = (
-      features['probability_distribution'][tf.newaxis])
+      features['probability_distribution'])
     probability_targets = process_target(
       full_resolution_probability, DOWNSAMPLE, params.bit_depth)
     logging.info("probability_targets {}".format(probability_targets))
+
+    mean, variance = tf.nn.moments(features['scatterer_distribution'][0], [0, 1])
+    feature_hook = tf.train.LoggingTensorHook(
+      tensors={"scatterers": features['scatterer_distribution'][0],
+               "probability": features['probability_distribution'][0],
+               "max": tf.reduce_max(features['scatterer_distribution'][0]),
+               "mean": mean,
+               "variance": variance},
+      every_n_iter=params.log_steps,
+    )
+    train_hooks.append(feature_hook)
 
     if params.objective == _PROBABILITY:
       target = probability_targets
@@ -264,8 +286,8 @@ def model_fn(features, labels, mode, params):
       grid_dimension=params.grid_dimension,
     )
 
-    raw = sim.observation_from_distribution(
-      full_resolution_scatterer[0])[tf.newaxis]
+    raw = sim.observation_from_distribution(full_resolution_scatterer)
+
     logging.info("observations {}".format(raw))
 
     logging.info("Observation variables {}".format(tf.all_variables()))
@@ -294,7 +316,8 @@ def model_fn(features, labels, mode, params):
     else:
       training = False
 
-    features = network(observations['raw'], observations['average'], training)
+    features = network(observations['raw'], observations['average'], training,
+      params.squeeze_excite, params.downsample_bits, params.prepool_bits)
     logging.info("features {}".format(features))
 
     # Get discretized predictions.
@@ -331,11 +354,17 @@ def model_fn(features, labels, mode, params):
       pred_summary = tf.summary.image("prediction_image", prediction_image, 1)
       diff_summary = tf.summary.image("difference", difference, 1)
 
+      # for Google Slides summary 
+      dist_t_summary = tf.summary.tensor_summary("distribution_tensor", target_image)
+      pred_t_summary = tf.summary.tensor_summary("predictions_tensor", prediction_image)
+      diff_t_summary = tf.summary.tensor_summary("difference_tensor", target_image-prediction_image)
+
       images_summaries = [
-        dist_fr_summary, dist_summary, pred_summary, diff_summary]
+        dist_fr_summary, dist_summary, pred_summary, diff_summary,
+        dist_t_summary, pred_t_summary, diff_t_summary]
       images_summaries = tf.summary.merge(images_summaries)
-      image_summary_hook = tf.train.SummarySaverHook(
-        summary_op=images_summaries, save_secs=60)
+      image_summary_hook = tf.train.SummarySaverHook(save_steps=1,
+        output_dir= params.job_dir + "/eval", summary_op = images_summaries)
       eval_hooks.append(image_summary_hook)
 
   with tf.name_scope("predict_mode"):

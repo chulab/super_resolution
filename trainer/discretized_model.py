@@ -36,7 +36,7 @@ def make_hparams() -> tf.contrib.training.HParams:
     distribution_pool_downsample=10,
     bit_depth=2,
     decay_step=500,
-    decay_rate=.9,
+    decay_rate=.99,
   )
 
 
